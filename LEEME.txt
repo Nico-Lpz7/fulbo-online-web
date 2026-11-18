@@ -1,0 +1,2 @@
+Fulbo Manager Online - version web (iPhone / PC)
+Subir index.html, manifest.webmanifest e icon-*.png a la raiz del repo, activar Pages (Settings > Pages > main / root).
