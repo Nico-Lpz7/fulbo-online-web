@@ -10830,6 +10830,7 @@ function onBuild(worldGz,mineGz){
   ON.replay=true;
   try{ON.pending.forEach(a=>{try{applyAction(me,a.kind,a.payload);}catch(e){console.error('replay',e);}});}
   finally{ON.replay=false;}
+  try{onScoutLoad();onInboxSync();}catch(e){}
   ON.sig=onSig();
 }
 function onStartGame(){
@@ -10884,6 +10885,8 @@ function onLabels(){
 function onRelabel(){
   const txt='⏱ '+onLeft();
   document.querySelectorAll('[onclick="advanceRound()"]').forEach(b=>{b.textContent=txt;});
+  const qp=document.getElementById('quick-play');
+  if(qp){qp.textContent='⏱ '+onLeft().replace('Próxima fecha en ','').replace('Procesando la fecha…','Procesando…');qp.title='Próxima fecha';qp.disabled=false;}
 }
 
 // ---- enviar decisiones ----
@@ -10914,7 +10917,7 @@ const _toastOrig=toast;function _toastOn(m){_toastOrig(m);}
 toast=function(m){if(ON.replay)return;_toastOrig(m);};
 const _renderAllOrig=renderAll;
 renderAll=function(){if(ON.replay||!ON.ready)return;_renderAllOrig.apply(this,arguments);onRelabel();};
-saveGame=function(show){if(show===true)toast('Tu liga se guarda sola en el servidor.');};clearSaves=function(){};
+saveGame=function(show){if(show===true)toast('Tu liga se guarda sola en el servidor.');try{onScoutSave();}catch(e){}};clearSaves=function(){};
 advanceRound=function(){
   openModal('La fecha se juega sola','<p>En la liga online <strong>se juegan dos fechas por día: a las 13:00 y a las 21:00</strong> (hora de Argentina), para todos a la vez.</p><p>Lo que dejes armado hasta ese momento (alineación, tácticas, ofertas) es lo que cuenta.</p><p><strong>'+onEsc(onLeft())+'</strong></p>',[{label:'Entendido',primary:true,action:closeModal}]);
 };
@@ -11022,7 +11025,10 @@ function onMenu(){
   const el=document.getElementById('header-season');
   if(el){el.style.cursor='pointer';el.addEventListener('click',onMenu);}
   const mb=document.getElementById('menu-btn');if(mb){mb.onclick=onMenu;mb.title='Menú de la liga';}
-  const sb2=document.getElementById('save-btn');if(sb2)sb2.onclick=()=>toast('Tu liga se guarda sola en el servidor.');
+  const sb2=document.getElementById('save-btn');
+  if(sb2){const ic='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>';
+    sb2.innerHTML='<span class="lbl-d">'+ic+'<span>Actualizar</span></span>'+ic.replace('width="16" height="16"','class="ico-m" width="20" height="20"');
+    sb2.title='Actualizar la liga';sb2.setAttribute('aria-label','Actualizar la liga');sb2.onclick=()=>{toast('Actualizando la liga…');onPoll(true);};}
   const ss=document.getElementById('start-screen');if(ss)ss.classList.add('hidden');
   try{const raw=onLS(ON.SK);if(raw)ON.sess=JSON.parse(raw);}catch(e){}
   if(!ON.sess){onLoginScreen();return;}
@@ -11105,6 +11111,70 @@ async function onNotifToggle(){
   if(onNotifOn()){onLS('fo_notif','0');await onNotifDropToken();toast('Avisos desactivados.');}
   else{onLS('fo_notif','1');await onNotifInit();toast('Avisos activados.');}
 }
+
+
+// ---- pantallas: se quita lo que no aplica online y se reemplaza por lo que sí sirve ----
+const ON_DIVN={1:'Primera',2:'Primera B Nacional',3:'Primera B Metropolitana',4:'Primera C'};
+const _onRenderSettings=renderSettings;
+renderSettings=function(){
+  _onRenderSettings();
+  try{
+    const el=document.getElementById('view-settings');if(!el)return;
+    const panels=el.querySelectorAll('.panel');if(panels.length<3)return;
+    const p1=panels[0],p2=panels[1],p3=panels[2];
+    const h=[...p1.querySelectorAll('h3')].find(x=>/Partida/.test(x.textContent));
+    if(h){const rm=[];let n=h;while(n){rm.push(n);n=n.nextElementSibling;}rm.forEach(x=>x.remove());}
+    const code=onLS(ON.CK)||'';
+    p2.innerHTML=`<h3>Tu liga online</h3>
+    <div class="set-row"><span>Liga</span><strong>${onEsc(ON.leagueName||'')}</strong></div>
+    <div class="set-row"><span>Tu usuario</span><strong>${onEsc(ON.sess.name||'')}</strong></div>
+    ${code?`<div class="set-row"><span>Código para invitar amigos</span><strong>${onEsc(code)}</strong></div>`:''}
+    <div class="set-row"><span>Próxima fecha</span><strong>${onEsc(onLeft().replace('Próxima fecha en ','en '))}</strong></div>
+    <div class="set-row"><span>Traer los últimos cambios</span><button class="btn btn-sm" onclick="toast('Actualizando la liga…');onPoll(true)">Actualizar</button></div>
+    ${onNotifNative()?`<div class="set-row"><span>Avisos (fechas, ofertas, resultados)</span><button class="btn btn-sm" onclick="onNotifToggle().then(renderSettings)">${onNotifOn()?'Activados':'Desactivados'}</button></div>`:''}
+    <div class="set-row"><span>Salir de esta cuenta</span><button class="btn btn-sm btn-danger" onclick="onLogout()">Cerrar sesión</button></div>`;
+    p3.innerHTML=`<h3>Cómo se juega online</h3><div class="help-list">
+    <p><strong>Dos fechas por día: 13:00 y 21:00</strong> (hora de Argentina), para toda la liga a la vez. El botón de arriba muestra cuánto falta.</p>
+    <p><strong>Alineación, tácticas, entrenamiento, cantera, instalaciones y sponsors</strong> se guardan al instante en tu club.</p>
+    <p><strong>Mercado:</strong> tus ofertas, cesiones y contraofertas se resuelven <strong>en el próximo corte</strong>. Si dos managers ofertan por el mismo jugador, gana la mejor oferta. Las ofertas que recibís las respondés antes del corte.</p>
+    <p>Cuando se juega la fecha te aparece tu resultado y podés <strong>ver el partido</strong> en relato o con la cancha animada, también desde el Calendario (▶).</p>
+    <p>Los clubes con <strong>DT humano</strong> se marcan en dorado en las tablas, con el nombre de usuario.</p>
+    <p>Tocá <strong>Actualizar</strong> (arriba) si querés traer los cambios ya, sin esperar.</p></div>`;
+    p3.classList.add('help-wide');
+  }catch(e){}
+};
+const _onRenderClub=renderClub;
+renderClub=function(){
+  _onRenderClub();
+  try{
+    const sel=document.getElementById('club-selector');const p=sel&&sel.closest('.panel');if(!p)return;
+    const names=ON.names||{};
+    const rows=Object.keys(names).map(id=>{const t=getTeam(id);return t?{id,t,n:names[id]}:null;}).filter(Boolean).sort((a,b)=>a.t.division-b.t.division||a.n.localeCompare(b.n));
+    p.innerHTML=`<div class="section-row"><h3>Managers de la liga</h3><span class="badge badge-neutral">${rows.length} humanos</span></div>
+    ${rows.length?`<table class="table"><thead><tr><th>Manager</th><th>Club</th><th>División</th></tr></thead><tbody>${rows.map(r=>`<tr class="${r.id===G.userTeamId?'user-row':''}"><td><strong>${onEsc(r.n)}</strong></td><td><div class="team-cell">${crest(r.t)}<span>${onEsc(r.t.n)}</span></div></td><td>${onEsc(ON_DIVN[r.t.division]||'')}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">Todavía no se cargó la lista de managers.</div>'}`;
+  }catch(e){}
+};
+
+
+// ---- lo que es solo tuyo y no pasa por el servidor: busquedas del ojeador y novedades leidas (se guardan en este dispositivo) ----
+function onKeyOf(n){return 'fo_'+n+'_'+(ON.member?ON.member.league_id+'_'+ON.member.team_id:'x');}
+function onScoutSave(){if(G&&G.scout&&ON.member)onLS(onKeyOf('scout'),JSON.stringify(G.scout));}
+function onScoutLoad(){
+  try{const sv=JSON.parse(onLS(onKeyOf('scout'))||'null');
+    if(sv&&sv.season===G.season&&sv.round===G.round)G.scout=sv;}catch(e){}
+}
+function onInboxSync(){
+  try{
+    if(!G||!G.inbox||!ON.member)return;
+    const k=onKeyOf('inbox');let seen=Number(onLS(k)||0),mx=seen;
+    G.inbox.forEach(m=>{if(m.id<=seen)m.n=0;else if(!m.n&&m.id>mx)mx=m.id;});
+    if(mx>seen)onLS(k,String(mx));
+  }catch(e){}
+}
+const _onInboxBadge=inboxBadge;
+inboxBadge=function(){onInboxSync();_onInboxBadge();};
+const _onInboxReadAll=inboxReadAll;
+inboxReadAll=function(){_onInboxReadAll();onInboxSync();_onInboxBadge();};
 
 </script>
 </body>
