@@ -2719,9 +2719,11 @@ function playCupStage(silent){
   const c=G.cup,stage=c.stage,user=G.userTeamId;let userMatch=null;
   c.pending.forEach(m=>{
     const involved=m.home===user||m.away===user;
-    const r=playMatch(m.home,m.away,{kind:'cup',detailed:involved&&!silent,neutral:true,knockout:true});
+    const hum=!silent&&G.multi&&!!(humanCtx(m.home)||humanCtx(m.away));
+    const r=playMatch(m.home,m.away,{kind:'cup',detailed:(involved||hum)&&!silent,neutral:true,knockout:true});
+    if(hum)m.rec={events:r.events,stats:r.stats,lineups:r.lineups,mvp:r.mvp,end:r.end,formations:r.formations};
     m.hg=r.hg;m.ag=r.ag;m.pens=r.pens;m.winner=r.winner;
-    if(!silent){payHumans(m,'cup',120000+Math.max(0,stage-2)*60000);if(humanCtx(m.winner))addInc(m.winner,'prizes',CUP_PRIZES[stage]);}
+    if(!silent){payHumans(m,'cup',120000+Math.max(0,stage-2)*60000);if(humanCtx(m.winner))addInc(m.winner,'prizes',CUP_PRIZES[stage]);if(G.multi&&typeof cupHumNote==='function')cupHumNote(m,stage);}
     if(involved){
       userMatch=m;
       if(!silent)m.rec={events:r.events,stats:r.stats,lineups:r.lineups,mvp:r.mvp,end:r.end,formations:r.formations};
@@ -3975,14 +3977,15 @@ function playLibPhase(silent){
   const live=!silent&&!G.multi&&libUserActive();
   const run=(home,away,o={})=>{
     const involved=home===user||away===user,mine=live&&involved;
-    const r=playMatch(home,away,{kind:'intl',detailed:mine,neutral:!!o.neutral,knockout:!!o.knockout});
-    return {r,involved,mine};
+    const hum=!silent&&G.multi&&!!(humanCtx(home)||humanCtx(away));
+    const r=playMatch(home,away,{kind:'intl',detailed:mine||hum,neutral:!!o.neutral,knockout:!!o.knockout});
+    return {r,involved,mine,hum};
   };
   const comp=INTL_COMP[L.short];
   if(ph.type==='group'){
     L.groups.forEach(g=>g.matches.filter(m=>m.md===ph.md).forEach(m=>{
       const x=run(m.home,m.away);
-      m.hg=x.r.hg;m.ag=x.r.ag;m.played=true;
+      m.hg=x.r.hg;m.ag=x.r.ag;m.played=true;if(x.hum)m.rec=packRec(x.r);
       const H=g.rows[m.home],A=g.rows[m.away];
       H.pj++;A.pj++;H.gf+=m.hg;H.ga+=m.ag;A.gf+=m.ag;A.ga+=m.hg;
       if(m.hg>m.ag){H.w++;H.pts+=3;A.l++;}else if(m.hg<m.ag){A.w++;A.pts+=3;H.l++;}else{H.d++;A.d++;H.pts++;A.pts++;}
@@ -4004,10 +4007,10 @@ function playLibPhase(silent){
     ko.ties.forEach(t=>{
       const involved=t.a===user||t.b===user;
       if(ph.type==='leg1'){
-        const x=run(t.b,t.a);t.l1={home:t.b,away:t.a,hg:x.r.hg,ag:x.r.ag};
+        const x=run(t.b,t.a);t.l1={home:t.b,away:t.a,hg:x.r.hg,ag:x.r.ag};if(x.hum)t.l1.rec=packRec(x.r);
         if(x.involved&&L.userIn){const res={home:t.b,away:t.a,hg:x.r.hg,ag:x.r.ag,pens:null,label:ph.name,comp:L.name};if(x.mine){res.rec=packRec(x.r);L.user.push({...res});}out.userRes=res;if(live)out.income+=250000;}
       }else if(ph.type==='leg2'){
-        const x=run(t.a,t.b);t.l2={home:t.a,away:t.b,hg:x.r.hg,ag:x.r.ag};
+        const x=run(t.a,t.b);t.l2={home:t.a,away:t.b,hg:x.r.hg,ag:x.r.ag};if(x.hum)t.l2.rec=packRec(x.r);
         const ga=t.l1.ag+t.l2.hg,gb=t.l1.hg+t.l2.ag;
         let pens=null,w;
         if(ga>gb)w=t.a;else if(gb>ga)w=t.b;else{const p=strengthShootout(t.a,t.b);pens=p;w=p[0]>p[1]?t.a:t.b;}
@@ -4021,7 +4024,7 @@ function playLibPhase(silent){
         }
       }else{ // final
         const x=run(t.a,t.b,{neutral:true,knockout:true});
-        t.l1={home:t.a,away:t.b,hg:x.r.hg,ag:x.r.ag};t.w=x.r.winner;t.pens=x.r.pens||null;t.agg=[x.r.hg,x.r.ag];
+        t.l1={home:t.a,away:t.b,hg:x.r.hg,ag:x.r.ag};if(x.hum)t.l1.rec=packRec(x.r);t.w=x.r.winner;t.pens=x.r.pens||null;t.agg=[x.r.hg,x.r.ag];
         L.champion=t.w;
         if(involved&&L.userIn){
           const res={home:t.a,away:t.b,hg:x.r.hg,ag:x.r.ag,pens:t.pens,label:ph.name,comp:L.name,tieWin:t.w===user};
@@ -4047,6 +4050,13 @@ function libSyncUser(L){
     const inKO=L.ko&&L.ko[0]&&L.ko[0].ties.some(t=>t.a===u||t.b===u)||(L.directs||[]).includes(u);
     if(!inKO){L.userOut=true;L.userStage='Fase de grupos';return;}
   }
+  // partidos propios con relato (para el ▶)
+  L.user=[];
+  if(g)g.matches.forEach(m=>{if((m.home===u||m.away===u)&&m.played&&m.rec)L.user.push({home:m.home,away:m.away,hg:m.hg,ag:m.ag,pens:null,label:'Fase de grupos · fecha '+(m.md+1),comp:L.name,rec:m.rec});});
+  (L.ko||[]).forEach((r,i)=>r.ties.forEach(t=>{
+    if(t.a!==u&&t.b!==u)return;
+    [[t.l1,'ida'],[t.l2,'vuelta']].forEach(([l,k])=>{if(l&&l.rec)L.user.push({home:l.home,away:l.away,hg:l.hg,ag:l.ag,pens:L.koNames[i]===L.koNames[L.koNames.length-1]?t.pens:null,label:r.name+(i===L.ko.length-1&&!t.l2?'':' · '+k),comp:L.name,rec:l.rec});});
+  }));
   (L.ko||[]).forEach((r,i)=>r.ties.forEach(t=>{
     if((t.a===u||t.b===u)&&t.w){
       if(t.w!==u){L.userOut=true;L.userStage=i===L.ko.length-1&&L.champion?'Subcampeón':L.koNames[i];}
@@ -4564,6 +4574,51 @@ function advanceRoundMulti(){
   switchHuman(G.placeholder);
 }
 
+// Corte de copa (liga online): se juegan los partidos de Copa Argentina / Libertadores / Sudamericana de esta fecha, antes de la liga
+let cupHumLog={};
+function cupHumNote(m,stage){
+  [m.home,m.away].forEach(h=>{
+    if(!humanCtx(h))return;
+    const w=m.winner===h,opp=getTeam(h===m.home?m.away:m.home).n,fin=stage===CUP_STAGES.length-1;
+    const sc=`${getTeam(m.home).n} ${m.hg}-${m.ag} ${getTeam(m.away).n}${m.pens?` (pen. ${m.pens[0]}-${m.pens[1]})`:''}`;
+    (cupHumLog[h]=cupHumLog[h]||[]).push({title:'Copa Argentina · '+CUP_STAGES[stage],text:sc+'. '+(w?(fin?'¡Campeón de la Copa Argentina! Premio: '+money(CUP_PRIZES[stage])+'.':'Pasaste de ronda. Premio: '+money(CUP_PRIZES[stage])+'.'):'Quedaste eliminado ante '+opp+'.')});
+  });
+}
+function midweekDueMulti(){
+  if(G.seasonFinished)return false;
+  const r=Math.min(G.round,getSeasonRounds());
+  if(G.midDone===r||promoActive())return false;
+  return !!(cupDueThisRound(r)||libDueThisRound(r)||sudDueThisRound(r));
+}
+function advanceMidweekMulti(){
+  if(!G.multi)setupMulti();
+  if(G.userTeamId!==G.placeholder)switchHuman(G.placeholder);
+  const round=Math.min(G.round,getSeasonRounds()),ids=humanIds();
+  roundIncomeBy={};libHumLog={};cupHumLog={};roundNotes=[];roundIncome={cup:0,prizes:0};
+  G.turn=(G.turn||0)+1;
+  runCompetitions(round,[]);
+  G.players.forEach(p=>{if(p.tId)p.fit=clamp((p.fit==null?100:p.fit)+8,0,100);});
+  const rep={};
+  ids.forEach(id=>{
+    switchHuman(id);
+    const inc=roundIncomeBy[id]||{cup:0,prizes:0};delete roundIncomeBy[id];
+    getUserTeam().budget+=inc.cup+inc.prizes;G.midInc={cup:inc.cup,prizes:inc.prizes};
+    const ev=(cupHumLog[id]||[]).concat(libHumLog[id]||[]);
+    ev.forEach(e=>logEvent(e.title,e.text+(inc.cup+inc.prizes&&e===ev[ev.length-1]?' Ingresos del partido: '+money(inc.cup+inc.prizes)+'.':'')));
+    if(ev.length)rep[id]=ev.map(e=>e.title+': '+e.text);
+    fixLineup();
+  });
+  libHumLog={};cupHumLog={};
+  // los relatos de partidos de copa viejos se descartan (quedan los resultados)
+  try{
+    if(G.cup&&G.cup.rounds)G.cup.rounds.forEach((r,i)=>{if(i<G.cup.rounds.length-2)r.matches.forEach(m=>{delete m.rec;});});
+    [G.lib,G.sud].forEach(L=>{if(!L)return;
+      (L.groups||[]).forEach(g=>g.matches.forEach(m=>{if(m.rec&&m.md<L.phase-3)delete m.rec;}));
+      (L.ko||[]).forEach((r,i)=>{if(i<L.ko.length-2)r.ties.forEach(t=>{if(t.l1)delete t.l1.rec;if(t.l2)delete t.l2.rec;});});});
+  }catch(e){}
+  G.midDone=round;G._midReport=rep;
+  switchHuman(G.placeholder);
+}
 // Fecha de cierre: se juegan las copas pendientes y cada humano cobra y recibe sus novedades
 function runExtrasMulti(){
   if(G.userTeamId!==G.placeholder)switchHuman(G.placeholder);
@@ -4643,6 +4698,9 @@ function humanSeasonEnd(){
   G.seasonHistory.push({season:G.season,division:div,comp:competitionLabel(user),club:user.n,pos,met,promoted});
   logEvent(met?'Objetivo cumplido':'Objetivo no cumplido',`${obj.text} Terminaste ${pos}º.${met?` Bonus de la dirigencia: ${money(bonus)}.`:''}`+(fired?' La dirigencia está muy disconforme.':''));
 }
+// El ancla (sin manager) nunca "juega" la promocion paso a paso: el reducido se simula completo con el cierre de la liga
+const _puaOrig=promoUserActive;
+promoUserActive=function(){if(G.multi&&G.userTeamId===G.placeholder)return false;return _puaOrig.apply(this,arguments);};
 
 // ---------------------------------------------------------------------------
 // Mercado online: ofertas durante el dia, se resuelven todas juntas en el corte diario.
@@ -10820,7 +10878,7 @@ function onScreen(html){
 function onHide(){const el=document.getElementById('on-screen');if(el)el.style.display='none';}
 function onErr(m){const e=document.getElementById('on-err');if(e)e.textContent=m||'';}
 function onLoginScreen(msg){
-  onScreen(`<p class="on-sub">Liga entre amigos · dos fechas por día: 13:00 y 21:00.</p>
+  onScreen(`<p class="on-sub">Liga entre amigos · tres cortes por día: 13:00, 17:00 y 21:00.</p>
   <label>Usuario</label><input id="on-user" class="form-control" autocomplete="username" autocapitalize="none" maxlength="24" value="${onEsc(onLS(ON.NK)||'')}">
   <label>Contraseña</label><input id="on-pass" class="form-control" type="password" autocomplete="current-password" maxlength="64">
   <div id="on-err" class="on-err">${onEsc(msg||'')}</div>
@@ -10890,7 +10948,7 @@ async function onJoin(){
 }
 function onWaitScreen(){
   onScreen(`<p class="on-sub">Ya estás en la liga con <strong>${onEsc((ALL_CLUBS.find(t=>t.id===ON.member.team_id)||{}).n||ON.member.team_id)}</strong>.</p>
-  <p>Tu club se incorpora al mundo en la <strong>próxima fecha</strong> (13:00 o 21:00, la que llegue primero). Cuando pase, esta pantalla te lleva sola al juego.</p>
+  <p>Tu club se incorpora al mundo en la <strong>próxima fecha</strong> (13:00, 17:00 o 21:00, la que llegue primero). Cuando pase, esta pantalla te lleva sola al juego.</p>
   <p class="on-count" id="on-count">${onEsc(onLeft())}</p>
   <div class="on-row"><button class="btn btn-primary" onclick="onPoll(true)">Actualizar</button><button class="btn" onclick="onLogout()">Salir</button></div>`);
   onStartPoll();
@@ -10933,7 +10991,7 @@ function onStartGame(){
   renderAll();switchView('overview');
   onStartPoll();
   try{onNotifInit();}catch(e){}
-  if(!onLS('fmo_welcome1')){onLS('fmo_welcome1','1');openModal('¡Bienvenido a la liga!','<p>Se juegan <strong>dos fechas por día: a las 13:00 y a las 21:00</strong> (hora de Argentina), para todos a la vez.</p><p>Hasta el próximo corte armá tu equipo y mandá ofertas por jugadores: <strong>el mercado se resuelve en cada corte</strong> y gana la oferta más alta.</p><p>Tocá el título de arriba (Temporada…) para ver el menú de la liga.</p>',[{label:'A jugar',primary:true,action:closeModal}]);}
+  if(!onLS('fmo_welcome1')){onLS('fmo_welcome1','1');openModal('¡Bienvenido a la liga!','<p>Se juegan <strong>tres cortes por día: a las 13:00, 17:00 y 21:00</strong> (hora de Argentina), para todos a la vez.</p><p>Hasta el próximo corte armá tu equipo y mandá ofertas por jugadores: <strong>el mercado se resuelve en cada corte</strong> y gana la oferta más alta.</p><p>Tocá el título de arriba (Temporada…) para ver el menú de la liga.</p>',[{label:'A jugar',primary:true,action:closeModal}]);}
 }
 
 // ---- actualizacion periodica ----
@@ -10942,7 +11000,7 @@ function onLeft(){
   const t=new Date(ON.next).getTime()-Date.now();
   if(t<=0)return 'Procesando la fecha…';
   const h=Math.floor(t/3600000),m=Math.floor(t%3600000/60000);
-  return 'Próxima fecha en '+h+'h '+String(m).padStart(2,'0')+'m';
+  return 'Próximo corte en '+h+'h '+String(m).padStart(2,'0')+'m';
 }
 function onStartPoll(){
   if(ON.pollT)return;
@@ -10979,7 +11037,7 @@ function onRelabel(){
   const txt='⏱ '+onLeft();
   document.querySelectorAll('[onclick="advanceRound()"]').forEach(b=>{b.textContent=txt;});
   const qp=document.getElementById('quick-play');
-  if(qp){qp.textContent='⏱ '+onLeft().replace('Próxima fecha en ','').replace('Procesando la fecha…','Procesando…');qp.title='Próxima fecha';qp.disabled=false;}
+  if(qp){qp.textContent='⏱ '+onLeft().replace('Próximo corte en ','').replace('Procesando la fecha…','Procesando…');qp.title='Próxima fecha';qp.disabled=false;}
 }
 
 // ---- enviar decisiones ----
@@ -11012,7 +11070,7 @@ const _renderAllOrig=renderAll;
 renderAll=function(){if(ON.replay||!ON.ready)return;_renderAllOrig.apply(this,arguments);onRelabel();};
 saveGame=function(show){if(show===true)toast('Tu liga se guarda sola en el servidor.');try{onScoutSave();}catch(e){}};clearSaves=function(){};
 advanceRound=function(){
-  openModal('La fecha se juega sola','<p>En la liga online <strong>se juegan dos fechas por día: a las 13:00 y a las 21:00</strong> (hora de Argentina), para todos a la vez.</p><p>Lo que dejes armado hasta ese momento (alineación, tácticas, ofertas) es lo que cuenta.</p><p><strong>'+onEsc(onLeft())+'</strong></p>',[{label:'Entendido',primary:true,action:closeModal}]);
+  openModal('La fecha se juega sola','<p>En la liga online <strong>se juegan tres cortes por día: a las 13:00, 17:00 y 21:00</strong> (hora de Argentina), para todos a la vez.</p><p>Lo que dejes armado hasta ese momento (alineación, tácticas, ofertas) es lo que cuenta.</p><p><strong>'+onEsc(onLeft())+'</strong></p>',[{label:'Entendido',primary:true,action:closeModal}]);
 };
 goStartMenu=function(){onMenu();};
 settingsWipe=function(){toast('En la liga online no hay nada para borrar acá.');};
@@ -11043,7 +11101,7 @@ openNegotiation=function(pid){
     prev?{label:'Retirar oferta',action:()=>{closeModal();onAct('cancel_bid',{pid:p.id},'Oferta retirada.');}}:null,
     {label:prev?'Actualizar oferta':'Enviar oferta',primary:true,action:()=>{
       const amount=numIn('bid-amount'),wage=numIn('bid-wage'),years=numIn('bid-years')||3;
-      const r=onAct('bid',{pid:p.id,amount,wage,years},'Oferta enviada. Se resuelve en el próximo corte (13:00 o 21:00).');
+      const r=onAct('bid',{pid:p.id,amount,wage,years},'Oferta enviada. Se resuelve en el próximo corte.');
       if(r&&r.ok)closeModal();
     }}]);
 };
@@ -11060,7 +11118,7 @@ openLoanIn=function(pid){
   if(G.seasonFinished||remainingRounds()<3){toast('Ya es muy tarde en la temporada para pedir cesiones.');return;}
   const why=sellerBlock(p,true);if(why){toast(why);return;}
   const ref=loanMinFee(p,75,0),prev=(G.loanBids||[]).find(b=>b.buyer===G.userTeamId&&b.pid===p.id);
-  openModal('Pedir a préstamo: '+p.name,`${negHead(p)}<p class="small text-muted" style="margin:10px 0">Hasta fin de temporada (${remainingRounds()} fechas). Referencia: con el 75% del sueldo a tu cargo suelen pedir unos ${money(ref)}. La respuesta llega en el próximo corte (13:00 o 21:00).</p>
+  openModal('Pedir a préstamo: '+p.name,`${negHead(p)}<p class="small text-muted" style="margin:10px 0">Hasta fin de temporada (${remainingRounds()} fechas). Referencia: con el 75% del sueldo a tu cargo suelen pedir unos ${money(ref)}. La respuesta llega en el próximo corte.</p>
   <div class="neg-input"><label class="small text-muted" for="ln-fee">Tu oferta por el préstamo ($)</label><input id="ln-fee" class="form-control" type="number" min="0" step="5000" value="${prev?prev.fee:r1k(ref)}"></div>
   <div class="neg-input"><label class="small text-muted" for="ln-pct">Porcentaje del sueldo a tu cargo</label><select id="ln-pct" class="form-control">${[50,75,100].map(x=>`<option value="${x}" ${x===(prev?prev.pct:75)?'selected':''}>${x}%</option>`).join('')}</select></div>
   <div class="neg-input"><label class="small text-muted" for="ln-opt">Opción de compra ($, 0 = sin opción)</label><input id="ln-opt" class="form-control" type="number" min="0" step="10000" value="${prev?prev.option:0}"></div>`,
@@ -11105,7 +11163,7 @@ renderMarket=function(){
   const me=G.userTeamId,bids=(G.bids||[]).filter(b=>b.buyer===me);
   const lrows=(G.loanBids||[]).filter(b=>b.buyer===me).map(b=>{const f=mkFindPlayer(b.pid);return `<div class="on-bid"><span><strong>${onEsc(f?f.p.name:'Jugador '+b.pid)}</strong> · préstamo ${money(b.fee)} · ${b.pct}% del sueldo${b.option?' · opción '+money(b.option):''}</span><button class="btn btn-sm" onclick="onAct('cancel_bid',{pid:${b.pid}},'Propuesta retirada.')">Retirar</button></div>`;}).join('');
   const rows=bids.map(b=>{const f=mkFindPlayer(b.pid);const nm=f?f.p.name:'Jugador '+b.pid;return `<div class="on-bid"><span><strong>${onEsc(nm)}</strong> · ${money(b.amount)} · sueldo ${money(b.wage)} · ${b.years} temp.</span><button class="btn btn-sm" onclick="onAct('cancel_bid',{pid:${b.pid}},'Oferta retirada.')">Retirar</button></div>`;}).join('');
-  el.insertAdjacentHTML('afterbegin',`<div class="panel on-panel"><div class="section-row"><h3>Subasta de fichajes</h3><span class="badge badge-neutral">${onEsc(onLeft())}</span></div><p class="small text-muted">Tus ofertas se resuelven junto con las de los demás en el próximo corte (13:00 o 21:00). Gana la más alta. La plata se descuenta recién si ganás.</p>${(rows+lrows)||'<p class="small text-muted">Todavía no tenés ofertas para el próximo corte.</p>'}</div>`);
+  el.insertAdjacentHTML('afterbegin',`<div class="panel on-panel"><div class="section-row"><h3>Subasta de fichajes</h3><span class="badge badge-neutral">${onEsc(onLeft())}</span></div><p class="small text-muted">Tus ofertas se resuelven junto con las de los demás en el próximo corte. Gana la más alta. La plata se descuenta recién si ganás.</p>${(rows+lrows)||'<p class="small text-muted">Todavía no tenés ofertas para el próximo corte.</p>'}</div>`);
 };
 // menu de la liga (tocando el titulo de arriba)
 function onMenu(){
@@ -11170,14 +11228,14 @@ async function onNotifSchedule(LN){
   if(!LN)return;
   try{const pend=await LN.getPending();if(pend&&pend.notifications&&pend.notifications.length)await LN.cancel({notifications:pend.notifications.map(n=>({id:n.id}))});}catch(e){}
   const out=[],now=Date.now(),H=3600000;let id=1000;
-  // cortes: 16:00 y 00:00 UTC (13:00 y 21:00 Argentina); aviso 30 min antes. Se programan los proximos 12 dias.
+  // cortes: 16:00, 20:00 y 00:00 UTC (13:00, 17:00 y 21:00 Argentina); aviso 30 min antes. Se programan los proximos 12 dias.
   const d0=new Date();d0.setUTCHours(0,0,0,0);
   for(let d=0;d<=12;d++){
-    for(const h of [0,16]){
+    for(const h of [0,16,20]){
       const cut=d0.getTime()+d*24*H+h*H,at=cut-30*60000;
       if(at<=now+60000)continue;
-      const lbl=h===16?'13:00':'21:00';
-      out.push({id:id++,title:'⏱ La fecha empieza en 30 minutos',body:'Se juega a las '+lbl+'. Revisá tu alineación, el mercado y las ofertas antes del corte.',schedule:{at:new Date(at),allowWhileIdle:true},channelId:'fulbo_avisos',smallIcon:'ic_stat_fulbo'});
+      const lbl=h===16?'13:00':h===20?'17:00':'21:00';
+      out.push({id:id++,title:'⏱ El próximo corte es en 30 minutos',body:'Se juega a las '+lbl+'. Revisá tu alineación, el mercado y las ofertas antes del corte.',schedule:{at:new Date(at),allowWhileIdle:true},channelId:'fulbo_avisos',smallIcon:'ic_stat_fulbo'});
     }
   }
   if(out.length)await LN.schedule({notifications:out});
@@ -11222,12 +11280,12 @@ renderSettings=function(){
     <div class="set-row"><span>Liga</span><strong>${onEsc(ON.leagueName||'')}</strong></div>
     <div class="set-row"><span>Tu usuario</span><strong>${onEsc(ON.sess.name||'')}</strong></div>
     ${code?`<div class="set-row"><span>Código para invitar amigos</span><strong>${onEsc(code)}</strong></div>`:''}
-    <div class="set-row"><span>Próxima fecha</span><strong>${onEsc(onLeft().replace('Próxima fecha en ','en '))}</strong></div>
+    <div class="set-row"><span>Próxima fecha</span><strong>${onEsc(onLeft().replace('Próximo corte en ','en '))}</strong></div>
     <div class="set-row"><span>Traer los últimos cambios</span><button class="btn btn-sm" onclick="toast('Actualizando la liga…');onPoll(true)">Actualizar</button></div>
     ${onNotifNative()?`<div class="set-row"><span>Avisos (fechas, ofertas, resultados)</span><button class="btn btn-sm" onclick="onNotifToggle().then(renderSettings)">${onNotifOn()?'Activados':'Desactivados'}</button></div>`:''}
     <div class="set-row"><span>Salir de esta cuenta</span><button class="btn btn-sm btn-danger" onclick="onLogout()">Cerrar sesión</button></div>`;
     p3.innerHTML=`<h3>Cómo se juega online</h3><div class="help-list">
-    <p><strong>Dos fechas por día: 13:00 y 21:00</strong> (hora de Argentina), para toda la liga a la vez. El botón de arriba muestra cuánto falta.</p>
+    <p><strong>Tres cortes por día: 13:00, 17:00 y 21:00</strong> (hora de Argentina), para toda la liga a la vez. En cada corte se juega una fecha de liga o los partidos de copa (Copa Argentina, Libertadores, Sudamericana) de esa fecha. El botón de arriba muestra cuánto falta.</p>
     <p><strong>Alineación, tácticas, entrenamiento, cantera, instalaciones y sponsors</strong> se guardan al instante en tu club.</p>
     <p><strong>Mercado:</strong> tus ofertas, cesiones y contraofertas se resuelven <strong>en el próximo corte</strong>. Si dos managers ofertan por el mismo jugador, gana la mejor oferta. Las ofertas que recibís las respondés antes del corte.</p>
     <p>Cuando se juega la fecha te aparece tu resultado y podés <strong>ver el partido</strong> en relato o con la cancha animada, también desde el Calendario (▶).</p>
@@ -11280,6 +11338,44 @@ function onFixSwap(){
   G.fixtures=all.filter(f=>divOf(f)===myDiv);
   G.otherFixtures=all.filter(f=>divOf(f)!==myDiv);
 }
+
+// Liga online: las copas las juega el servidor en cada corte; no hay paso "de mitad de semana" para el usuario
+midweekPending=function(){return false;};
+
+// Partidos de eliminatoria propios con relato (el ▶ de la fase de grupos ya existe en la vista de cada copa)
+const _onCompTab=compTabHTML;
+compTabHTML=function(key){
+  let h=_onCompTab(key);
+  try{
+    const L=G[key];
+    const ko=(L&&L.user||[]).map((m,i)=>[m,i]).filter(([m])=>!/^Fase de grupos/.test(m.label));
+    if(ko.length)h+=`<div class="panel" style="margin-top:14px"><h3>Tus partidos de eliminatoria</h3><div class="fixture-list">${ko.map(([m,i])=>`<div class="fixture fixture-user"><div class="fixture-team">${esc(m.label)}</div><div class="score-wrap"><div class="score">${esc(getTeam(m.home).n)} ${m.hg} - ${m.ag} ${esc(getTeam(m.away).n)}</div><button class="btn btn-sm btn-ghost replay-btn" onclick="replayLib(${i},'${key}')" title="Ver relato">▶</button></div></div>`).join('')}</div></div>`;
+  }catch(e){}
+  return h;
+};
+
+// Que toca en el proximo corte: partidos de copa de esta fecha (si hay) o la fecha de liga
+function onCutInfo(){
+  try{
+    if(G.seasonFinished)return {kind:'fin',text:'Cierre de temporada: se juegan las copas de cierre y después arranca la nueva.'};
+    const r=Math.min(G.round,getSeasonRounds());
+    const due=G.midDone!==r&&!promoActive()&&(cupDueThisRound(r)||libDueThisRound(r)||sudDueThisRound(r));
+    if(due){
+      const ex=roundExtras();
+      return {kind:'copa',text:ex.length?ex.map(x=>x.label+(x.opp?' vs '+x.opp.n:'')).join(' · '):'Partidos de copa (tu club no juega en esta ronda).'};
+    }
+    const f=currentUserFixture(r);
+    return {kind:'liga',text:f?'Fecha '+r+': '+getTeam(f.home).n+' vs '+getTeam(f.away).n:'Fecha '+r+' (tu club no juega).'};
+  }catch(e){return null;}
+}
+const _onRenderOverview=renderOverview;
+renderOverview=function(){
+  _onRenderOverview.apply(this,arguments);
+  try{
+    const i=onCutInfo(),el=document.getElementById('view-overview');
+    if(i&&el&&!el.querySelector('.on-cut'))el.insertAdjacentHTML('afterbegin',`<div class="panel on-panel on-cut" style="margin-bottom:12px"><div class="section-row"><h3>${i.kind==='copa'?'🏆 Próximo corte: copa':'⚽ Próximo corte'}</h3><span class="badge badge-neutral">${onEsc(onLeft().replace('Próximo corte en ','en '))}</span></div><p class="small text-muted">${onEsc(i.text)}</p></div>`);
+  }catch(e){}
+};
 
 </script>
 </body>
