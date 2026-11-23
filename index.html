@@ -1868,7 +1868,8 @@ function newPlayer(id,tId,basePower,pos,opts={}){
   let skill=clamp(basePower+rand(-9,8)+(pos==='ARQ'?rand(0,2):0),48,94);
   let age=opts.age||rand(18,34);
   if(opts.skill)skill=opts.skill;
-  let potential=opts.potential||Math.min(96,skill+(age<23?rand(4,14):rand(0,3)));
+  skill=Math.round(skill);
+  let potential=Math.round(opts.potential||Math.min(96,skill+(age<23?rand(4,14):rand(0,3))));
   const roster=opts.roster||(tId&&G&&G.players?G.players.filter(p=>p.tId===tId):null);
   const role=opts.role||pickRole(pos,roster);
   const p={id,tId,name:fullName(),pos,role,alt:(role!=='ARQ'&&Math.random()<.35)?pickAlt(role):null,age,skill,potential,value:0,wage:Math.round((skill*skill*3.2)+rand(3000,10000)),
@@ -1880,7 +1881,12 @@ function newPlayer(id,tId,basePower,pos,opts={}){
 }
 function effSkill(p){return Math.round(p.skill*(.9+.1*(p.fit==null?100:p.fit)/100));}
 function isAvail(p){return !(p.inj>0)&&!(p.susp>0);}
-function statusOf(p){if(p.inj>0)return {k:'inj',label:`Lesionado · ${p.inj} f.`,cls:'badge-poor'};if(p.susp>0)return {k:'susp',label:`Suspendido · ${p.susp} f.`,cls:'badge-poor'};if((p.fit??100)<60)return {k:'tired',label:'Cansado',cls:'badge-avg'};return {k:'ok',label:'Disponible',cls:'badge-good'};}
+function sanIcon(p){
+  if(p.inj>0)return '🩹';
+  if(p.susp>0){const w=String(p.suspWhy||'');if(/acumul/i.test(w))return '🟨';if(/doble/i.test(w))return '🟨🟥';if(/roja|expuls/i.test(w))return '🟥';return '⛔';}
+  return '';
+}
+function statusOf(p){if(p.inj>0)return {k:'inj',label:`🩹 Lesionado · ${p.inj} f.`,cls:'badge-poor'};if(p.susp>0)return {k:'susp',label:`${sanIcon(p)} Suspendido · ${p.susp} f.`,cls:'badge-poor'};if((p.fit??100)<60)return {k:'tired',label:'Cansado',cls:'badge-avg'};return {k:'ok',label:'Disponible',cls:'badge-good'};}
 
 // ---------------------------------------------------------------------------
 // Posiciones, alineaciones y ratings
@@ -1906,7 +1912,12 @@ function roleCost(p,role){
 }
 function effSkill(p){return Math.round(p.skill*(.9+.1*(p.fit==null?100:p.fit)/100));}
 function isAvail(p){return !(p.inj>0)&&!(p.susp>0);}
-function statusOf(p){if(p.inj>0)return {k:'inj',label:`Lesionado · ${p.inj} f.`,cls:'badge-poor'};if(p.susp>0)return {k:'susp',label:`Suspendido · ${p.susp} f.`,cls:'badge-poor'};if((p.fit??100)<60)return {k:'tired',label:'Cansado',cls:'badge-avg'};return {k:'ok',label:'Disponible',cls:'badge-good'};}
+function sanIcon(p){
+  if(p.inj>0)return '🩹';
+  if(p.susp>0){const w=String(p.suspWhy||'');if(/acumul/i.test(w))return '🟨';if(/doble/i.test(w))return '🟨🟥';if(/roja|expuls/i.test(w))return '🟥';return '⛔';}
+  return '';
+}
+function statusOf(p){if(p.inj>0)return {k:'inj',label:`🩹 Lesionado · ${p.inj} f.`,cls:'badge-poor'};if(p.susp>0)return {k:'susp',label:`${sanIcon(p)} Suspendido · ${p.susp} f.`,cls:'badge-poor'};if((p.fit??100)<60)return {k:'tired',label:'Cansado',cls:'badge-avg'};return {k:'ok',label:'Disponible',cls:'badge-good'};}
 // Asignación global: los pares (jugador, puesto) de mayor valor se ocupan primero.
 function assignSlots(players,slots,scoreFn){
   const pairs=[];
@@ -3142,6 +3153,7 @@ function saveGame(showMessage=false){try{if(!G){if(showMessage)toast('Primero em
 function fillPlayerDefaults(p){
   if(p.contract==null)p.contract=rand(1,4);
   if(p.fit==null)p.fit=100;
+  if(p.skill!=null)p.skill=Math.round(p.skill);if(p.potential!=null)p.potential=Math.round(p.potential);
   ['inj','susp','yc','g','a','ap','rs','rn','ys','rj','cg'].forEach(k=>{if(p[k]==null)p[k]=0;});
   if(p.askMul==null)p.askMul=+(1.1+Math.random()*.4).toFixed(2);
   if(!p.at&&p.role)genAttrs(p);
@@ -4039,6 +4051,12 @@ function playLibPhase(silent){
   if(G.multi&&typeof libHumPay==='function'&&!silent)try{libHumPay(L,ph,comp);}catch(e){console.log('libHumPay',e&&e.message);}
   L.phase++;
   return out;
+}
+function cupSyncUser(){
+  const c=G.cup;if(!c)return;const u=G.userTeamId;
+  c.userOut=false;c.userStage=null;
+  if(c.champion===u){c.userStage=CUP_STAGES.length;return;}
+  (c.rounds||[]).forEach(r=>(r.matches||[]).forEach(m=>{if((m.home===u||m.away===u)&&m.winner&&m.winner!==u){c.userOut=true;c.userStage=r.stage;}}));
 }
 // Estado del usuario actual (userIn/userOut/userStage) derivado de los datos compartidos (liga online: cada humano ve el suyo)
 function libSyncUser(L){
@@ -5545,7 +5563,7 @@ function analystPitch(t,xi){
   const slots=slotsFor(t),bySlot={};xi.forEach(x=>{bySlot[x.slot]=x;});
   let h='<div class="pitch"><div class="pitch-lines"></div>';
   slots.forEach((s,i)=>{const x=bySlot[i];
-    if(!x){h+=`<div class="pl pl-empty" style="left:${s.x}%;top:${s.y}%"><span class="pl-dot">?</span><span class="pl-name">${s.role}</span></div>`;return;}
+    if(!x){h+=`<div class="pl pl-empty" style="left:${s.x}%;top:${s.y}%"><span class="pl-dot">${gone?sanIcon(lp):'?'}</span><span class="pl-name">${s.role}</span></div>`;return;}
     h+=`<div class="pl pl-${x.g.toLowerCase()}" style="left:${s.x}%;top:${s.y}%" title="${esc(x.p.name)} · media ${x.p.skill}"><span class="pl-dot" style="${x.g==='ARQ'?gkVars(t):dotVars(t)}">${x.e}</span><span class="pl-name">${esc(shortName(x.p.name))}</span></div>`;});
   return h+'</div>';
 }
@@ -6214,7 +6232,7 @@ function pitchHTML(){
     if(!x||gone||x.sub){html+=`<div class="pl pl-empty ${sel?'pl-sel':''}" data-slot="${i}" style="left:${s.x}%;top:${s.y}%" onclick="selectSlot(${i})"${gone?` title="${esc(lp.name)}: ${lp.inj>0?'lesionado '+lp.inj+' f.':'suspendido '+lp.susp+' f.'}. Elegí a quién poner o tocá Autoalinear."`:''}><span class="pl-dot">?</span><span class="pl-name">${s.role}</span></div>`;return;}
     const tired=(x.p.fit??100)<60,off=x.cost>0;
     const cls=`pl pl-${x.g.toLowerCase()} ${x.sub?'pl-sub':''} ${tired?'pl-tired':''} ${sel?'pl-sel':''} ${x.cost>=6?'pl-bad':off?'pl-off':''}`;
-    html+=`<div class="${cls}" data-slot="${i}" data-pid="${x.p.id}" style="left:${s.x}%;top:${s.y}%" onclick="selectSlot(${i})" title="${esc(x.p.name)} · puesto ${s.role} · natural ${roleOf(x.p)}${x.p.alt?'/'+x.p.alt:''} · media ${x.p.skill} · físico ${x.p.fit??100}%${off?' · fuera de posición −'+x.cost:''}${x.sub?' · reemplazo automático':''}"><span class="pl-dot" style="${x.g==='ARQ'?gkVars(t):dotVars(t)}">${x.e}${off?`<span class="pl-pen ${x.cost>=6?'pen-bad':'pen-off'}">−${x.cost}</span>`:''}</span><span class="pl-name">${esc(shortName(x.p.name))}</span><span class="pl-role">${s.role}</span></div>`;
+    html+=`<div class="${cls}" data-slot="${i}" data-pid="${x.p.id}" style="left:${s.x}%;top:${s.y}%" onclick="selectSlot(${i})" title="${esc(x.p.name)} · puesto ${s.role} · natural ${roleOf(x.p)}${x.p.alt?'/'+x.p.alt:''} · media ${x.p.skill} · físico ${Math.round(x.p.fit??100)}%${off?' · fuera de posición −'+x.cost:''}${x.sub?' · reemplazo automático':''}"><span class="pl-dot" style="${x.g==='ARQ'?gkVars(t):dotVars(t)}">${x.e}${off?`<span class="pl-pen ${x.cost>=6?'pen-bad':'pen-off'}">−${x.cost}</span>`:''}</span><span class="pl-name">${esc(shortName(x.p.name))}</span><span class="pl-role">${s.role}</span></div>`;
   });
   return html+'</div>';
 }
@@ -6348,12 +6366,12 @@ function renderAll(){
 // Pantallas: Plantel, Tácticas, Entrenamiento y Enfermería
 // ---------------------------------------------------------------------------
 const attrCls=v=>v>=80?'at-top':v>=70?'at-good':v>=55?'at-mid':'at-low';
-function attrRow(label,v,extra=''){return `<div class="attr-row"><span class="attr-name">${esc(label)}</span><span class="attr-bar"><i class="${attrCls(v)}" style="width:${clamp(v,0,100)}%"></i></span><strong class="${attrCls(v)}-t">${v}</strong>${extra}</div>`;}
+function attrRow(label,v,extra=''){return `<div class="attr-row"><span class="attr-name">${esc(label)}</span><span class="attr-bar"><i class="${attrCls(v)}" style="width:${clamp(v,0,100)}%"></i></span><strong class="${attrCls(v)}-t">${Math.round(v)}</strong>${extra}</div>`;}
 function selectPlayer(id){UI.selPlayer=Number(id);renderSquad();}
 function avgR(p){return p.rn?(p.rs/p.rn):0;}
 
 function playerDetail(p){
-  const t=getUserTeam(),st=statusOf(p),fit=p.fit??100,keys=attrKeys(p);
+  const t=getUserTeam(),st=statusOf(p),fit=Math.round(p.fit??100),keys=attrKeys(p);
   const plan=trainingPlan().indiv[p.id];
   const canRenew=p.contract<=2&&!p.loan;
   const att=p.at?keys.map((k,i)=>attrRow(ATTR_NAMES[k],p.at[i],plan===k?'<span class="attr-plan" title="Plan individual de entrenamiento">▲</span>':'')).join(''):'<div class="empty">Sin datos.</div>';
@@ -6390,7 +6408,7 @@ function renderSquad(){
   if(sel)UI.selPlayer=sel.id;
   const sortOpts=[['pos','Posición'],['skill','Media'],['rating','Nota promedio'],['goals','Goles'],['age','Edad'],['value','Valor'],['fit','Físico (menor primero)'],['contract','Contrato (vence antes)']];
   const row=p=>{
-    const st=statusOf(p),inL=lineup.has(p.id),fit=p.fit??100;
+    const st=statusOf(p),inL=lineup.has(p.id),fit=Math.round(p.fit??100);
     return `<tr class="sel-row ${sel&&sel.id===p.id?'is-sel':''}" onclick="selectPlayer(${p.id})"><td class="c-star">${inL?'<span class="star" title="Titular">★</span>':''}</td><td class="c-name"><span class="player-name">${esc(p.name)}</span>${p.loan?' <span class="badge badge-neutral">PRÉSTAMO</span>':''}${p.tl?' <span class="badge badge-avg">EN VENTA</span>':''}${p.ll?' <span class="badge badge-neutral">CEDIBLE</span>':''}</td><td class="c-x">${roleTag(p)}</td><td class="c-x">${p.age}</td><td class="c-skill"><span class="rating">${p.skill}</span></td><td class="c-x">${p.potential}</td><td><div class="fit"><span class="fit-bar"><i class="${fit<50?'fit-low':fit<75?'fit-mid':''}" style="width:${fit}%"></i></span><small>${fit}</small></div></td><td><span class="badge ${st.cls}">${st.label}</span></td><td class="${p.contract<=1?'negative':''}">${p.contract} temp.</td><td>${p.ap}</td><td>${p.g}</td><td>${p.a}</td><td>${p.ys}</td><td>${p.rj}</td><td>${p.rn?avgR(p).toFixed(1):'–'}</td><td class="m-meta">${roleTag(p)}<span class="m-age">${p.age} años</span><span class="badge ${st.cls}">${st.label}</span><span class="m-fit"><span class="fit-bar"><i class="${fit<50?'fit-low':fit<75?'fit-mid':''}" style="width:${fit}%"></i></span>${fit}%</span>${p.contract<=1?'<span class="badge badge-poor">Vence</span>':''}</td></tr>`;
   };
   document.getElementById('view-squad').innerHTML=`<div class="page-head"><div><div class="eyebrow">Primer equipo</div><h2>Plantel</h2><p>Todo sobre tus jugadores: estadísticas, cualidades, contrato, sueldo y valor. Tocá un jugador para ver su ficha completa. Para armar el once, andá a <a href="#" onclick="switchView('tactics');return false">Tácticas</a>.</p></div><span class="badge badge-neutral">${roster.length}/${MAX_SQUAD} jugadores</span></div>
@@ -6414,7 +6432,7 @@ function benchStripHTML(t,bench,selRole,rest){
   const gkv=gkVars(t),kd=kitDef(t,'away'),lum=h=>{h=String(h||'#000').split(',')[0].replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16)||0,f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4);};return .2126*f(n>>16&255)+.7152*f(n>>8&255)+.0722*f(n&255);};
   const c2=String(kd.b).split(',')[0],vars=`--c1:${kd.a};--c2:${c2};--fg:${lum(kd.a)>.45?'#10151f':'#ffffff'}`;
   const tk=bench.concat(rest).map((p,ix)=>{const nc=ix>=bench.length;const st=statusOf(p),c=selRole?roleCost(p,selRole):0,out=!isAvail(p);
-    return `${nc&&ix===bench.length&&bench.length?'<div class="bn-sep" title="No convocados"></div>':''}<div class="bn ${nc?'bn-nc':''} ${out?'pl-unav':''} ${selRole&&c>=6?'pl-bad':selRole&&c>0?'pl-off':''}" data-pid="${p.id}" onclick="benchTap(${p.id})" title="${esc(p.name)} · ${roleOf(p)} · media ${p.skill} · físico ${p.fit??100}%${st.k!=='ok'?' · '+st.label.toLowerCase():''}${selRole?(c===0?' · puesto natural':' · fuera de posición −'+c):''}"><span class="pl-dot" style="${p.pos==='ARQ'?gkv:vars}">${effSkill(p)}${out?'<i class="bn-x">✚</i>':''}</span><span class="pl-name">${esc(shortName(p.name))}</span><span class="bn-role">${roleOf(p)}</span></div>`;}).join('');
+    return `${nc&&ix===bench.length&&bench.length?'<div class="bn-sep" title="No convocados"></div>':''}<div class="bn ${nc?'bn-nc':''} ${out?'pl-unav':''} ${selRole&&c>=6?'pl-bad':selRole&&c>0?'pl-off':''}" data-pid="${p.id}" onclick="benchTap(${p.id})" title="${esc(p.name)} · ${roleOf(p)} · media ${p.skill} · físico ${Math.round(p.fit??100)}%${st.k!=='ok'?' · '+st.label.toLowerCase():''}${selRole?(c===0?' · puesto natural':' · fuera de posición −'+c):''}"><span class="pl-dot" style="${p.pos==='ARQ'?gkv:vars}">${effSkill(p)}${out?'<i class="bn-x">✚</i>':''}</span><span class="pl-name">${esc(shortName(p.name))}</span><span class="bn-role">${roleOf(p)}</span></div>`;}).join('');
   return `<div class="bench-strip"><div class="section-row"><h3>Suplentes</h3></div><div class="bench-row">${tk||'<div class="empty">No hay suplentes.</div>'}</div></div>`;
 }
 function notCalledHTML(list,selRole){
@@ -6492,10 +6510,10 @@ function renderMedical(){
   const total=getSeasonRounds();
   const injRow=p=>{const s=sev(p),canT=(p.treatN||0)<2,cost=treatCost(p),ret=G.round+p.inj;return `<tr><td><span class="player-name">${esc(p.name)}</span></td><td>${roleTag(p)}</td><td>${esc(p.injName||'Lesión')}</td><td><span class="badge ${s[1]}">${s[0]}</span></td><td><strong>${p.inj}</strong> ${p.inj===1?'fecha':'fechas'}</td><td>${ret>total?'Próx. temporada':'Fecha '+ret}</td><td>${p.injN||1}</td><td>${canT?`<button class="btn btn-sm" onclick="treatPlayer(${p.id})" title="Baja una fecha la recuperación">Tratamiento ${compactMoney(cost)}</button>`:'<span class="small text-muted">Sin más tratamientos</span>'}</td></tr>`;};
   document.getElementById('view-medical').innerHTML=`<div class="page-head"><div><div class="eyebrow">Clínica</div><h2>Enfermería</h2><p>Seguí a tus lesionados y suspendidos, mirá quién está en riesgo por cansancio y acelerá recuperaciones con tratamientos especiales.</p></div><span class="badge badge-neutral">Clínica nivel ${med}/5</span></div>
-  <div class="grid grid-4" style="margin-bottom:14px">${statCard('Lesionados',injured.length,'🩹',injured.length?injured.slice(0,2).map(p=>esc(p.name)).join(', ')+(injured.length>2?'…':''):'Sin lesionados')}${statCard('Suspendidos',susp.length,'🟥',susp.length?susp.slice(0,2).map(p=>esc(p.name)).join(', '):'Sin suspendidos')}${statCard('En riesgo',risk.filter(p=>(p.fit??100)<60).length,'⚠','Jugadores con físico menor a 60')}${statCard('Físico promedio',Math.round(roster.reduce((a,p)=>a+(p.fit??100),0)/Math.max(1,roster.length)),'❤','Plantel completo')}</div>
+  <div class="grid grid-4" style="margin-bottom:14px">${statCard('Lesionados',injured.length,'🩹',injured.length?injured.slice(0,2).map(p=>esc(p.name)).join(', ')+(injured.length>2?'…':''):'Sin lesionados')}${statCard('Suspendidos',susp.length,susp.length?sanIcon(susp[0]):'🟥',susp.length?susp.slice(0,2).map(p=>esc(p.name)).join(', '):'Sin suspendidos')}${statCard('En riesgo',risk.filter(p=>(p.fit??100)<60).length,'⚠','Jugadores con físico menor a 60')}${statCard('Físico promedio',Math.round(roster.reduce((a,p)=>a+(p.fit??100),0)/Math.max(1,roster.length)),'❤','Plantel completo')}</div>
   <div class="panel"><div class="section-row"><h3>Lesionados</h3><button class="btn btn-sm" onclick="upgradeFacility('medical')" ${med>=5?'disabled':''}>Mejorar clínica</button></div>${injured.length?`<div class="table-wrap"><table><thead><tr><th>Jugador</th><th>Pos.</th><th>Lesión</th><th>Gravedad</th><th>Baja</th><th>Vuelve</th><th>Lesiones</th><th></th></tr></thead><tbody>${injured.map(injRow).join('')}</tbody></table></div>`:'<div class="empty">No hay lesionados. ¡Plantel sano!</div>'}<p class="small text-muted" style="margin-top:10px">Una mejor clínica acorta las lesiones, baja el riesgo y acelera la recuperación del físico. Cada lesión admite hasta 2 tratamientos intensivos (uno por fecha).</p></div>
-  <div class="grid grid-2" style="margin-top:14px"><div class="panel"><h3>Suspendidos</h3>${susp.length?susp.map(p=>`<div class="log-item"><strong>${esc(p.name)}</strong> ${roleTag(p)} <span class="badge badge-poor">${p.susp} ${p.susp===1?'fecha':'fechas'}</span><span>${esc(p.suspWhy||'Suspensión')} · yellows acumuladas: ${p.yc}/5</span></div>`).join(''):'<div class="empty">Nadie suspendido.</div>'}<p class="small text-muted" style="margin-top:10px">Con amarillas en riesgo: ${roster.filter(p=>p.yc>=3&&!(p.susp>0)).map(p=>esc(p.name)+' ('+p.yc+'/5)').join(', ')||'ninguno'}.</p></div>
-  <div class="panel"><h3>Riesgo por cansancio</h3>${risk.length?risk.slice(0,10).map(p=>{const r=injRisk(p),f=p.fit??100;return `<div class="log-item"><div class="section-row" style="margin:0"><span><strong>${esc(p.name)}</strong> ${roleTag(p)}</span><span class="badge ${r.c}">Riesgo ${r.t}</span></div><div class="fit" style="margin-top:6px"><span class="fit-bar"><i class="${f<50?'fit-low':f<75?'fit-mid':''}" style="width:${f}%"></i></span><small>${f}</small></div></div>`;}).join(''):'<div class="empty">Todos con buen estado físico.</div>'}<p class="small text-muted" style="margin-top:10px">Los jugadores con poco físico se lesionan más. Rotá el plantel o bajá la intensidad del entrenamiento.</p></div></div>`;
+  <div class="grid grid-2" style="margin-top:14px"><div class="panel"><h3>Suspendidos</h3>${susp.length?susp.map(p=>`<div class="log-item"><strong>${sanIcon(p)} ${esc(p.name)}</strong> ${roleTag(p)} <span class="badge badge-poor">${p.susp} ${p.susp===1?'fecha':'fechas'}</span><span>${esc(p.suspWhy||'Suspensión')} · amarillas acumuladas: ${p.yc}/5</span></div>`).join(''):'<div class="empty">Nadie suspendido.</div>'}<p class="small text-muted" style="margin-top:10px">Con amarillas en riesgo: ${roster.filter(p=>p.yc>=3&&!(p.susp>0)).map(p=>esc(p.name)+' ('+p.yc+'/5)').join(', ')||'ninguno'}.</p></div>
+  <div class="panel"><h3>Riesgo por cansancio</h3>${risk.length?risk.slice(0,10).map(p=>{const r=injRisk(p),f=Math.round(p.fit??100);return `<div class="log-item"><div class="section-row" style="margin:0"><span><strong>${esc(p.name)}</strong> ${roleTag(p)}</span><span class="badge ${r.c}">Riesgo ${r.t}</span></div><div class="fit" style="margin-top:6px"><span class="fit-bar"><i class="${f<50?'fit-low':f<75?'fit-mid':''}" style="width:${f}%"></i></span><small>${f}</small></div></div>`;}).join(''):'<div class="empty">Todos con buen estado físico.</div>'}<p class="small text-muted" style="margin-top:10px">Los jugadores con poco físico se lesionan más. Rotá el plantel o bajá la intensidad del entrenamiento.</p></div></div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -7427,6 +7445,8 @@ function calCollectAlerts(){
     teamPlayers(G.userTeamId).forEach(p=>{
       if(p.inj>0){if(!p.ia){p.ia=1;G.alerts.push({k:'inj',pid:p.id});}}
       else if(p.ia)p.ia=0;
+      if(p.susp>0){if(!p.sa){p.sa=1;G.alerts.push({k:'susp',pid:p.id});}}
+      else if(p.sa)p.sa=0;
     });
     if(!G.alertSeen)G.alertSeen={};
     // Ofertas repetidas por el mismo jugador: se avisa una vez; solo vuelve a saltar si la oferta mejora 15% o pasaron 8 fechas (todas quedan en Mercado y Novedades)
@@ -7441,6 +7461,9 @@ function calShowAlerts(){
     if(a.k==='inj'){
       const p=getPlayer(a.pid);if(!p||p.tId!==G.userTeamId||!(p.inj>0))return;
       hasInj=true;rows.push(`<div class="cal-alert"><span class="cal-alert-ic">🩹</span><div><strong>${esc(p.name)}</strong> se lesionó.<br><span class="small text-muted">Baja por ${p.inj} fecha${p.inj===1?'':'s'}.</span></div></div>`);
+    }else if(a.k==='susp'){
+      const p=getPlayer(a.pid);if(!p||p.tId!==G.userTeamId||!(p.susp>0))return;
+      hasInj=true;rows.push(`<div class="cal-alert"><span class="cal-alert-ic">${sanIcon(p)}</span><div><strong>${esc(p.name)}</strong> ${/roja|doble/i.test(p.suspWhy||'')?'fue expulsado':'quedó suspendido'}.<br><span class="small text-muted">${esc(p.suspWhy||'Suspensión')} · ${p.susp} fecha${p.susp===1?'':'s'} de suspensión.</span></div></div>`);
     }else if(a.k==='off'){
       const o=(G.offersIn||[]).find(x=>x.id===a.oid);if(!o)return;
       const p=getPlayer(o.pid),t=getTeam(o.teamId);if(!p||!t)return;
@@ -8138,11 +8161,11 @@ function navInjectBars(){
   }));
 }
 // ---- Bandeja de novedades ----
-function inboxAdd(k,title,detail,go){
+function inboxAdd(k,title,detail,go,ic){
   try{
     if(!G)return;G.inbox=G.inbox||[];
     G.inboxId=(G.inboxId||0)+1;
-    G.inbox.unshift({id:G.inboxId,d:G.date||null,s:G.season,r:G.round,k,t:title,x:detail||'',go:go||'',n:1});
+    G.inbox.unshift({id:G.inboxId,d:G.date||null,s:G.season,r:G.round,k,t:title,x:detail||'',go:go||'',n:1,i:ic||''});
     if(G.inbox.length>150)G.inbox.length=150;
   }catch(e){}
 }
@@ -8161,7 +8184,8 @@ calCollectAlerts=function(){
   _calCollectNav.apply(this,arguments);
   try{
     (G.alerts||[]).slice(before).forEach(a=>{
-      if(a.k==='inj'){const p=getPlayer(a.pid);if(p)inboxAdd('inj',p.name+' se lesionó',`Baja por ${p.inj} fecha${p.inj===1?'':'s'}.`,'medical');}
+      if(a.k==='inj'){const p=getPlayer(a.pid);if(p)inboxAdd('inj',p.name+' se lesionó',`Baja por ${p.inj} fecha${p.inj===1?'':'s'}.`,'medical','🩹');}
+      else if(a.k==='susp'){const p=getPlayer(a.pid);if(p)inboxAdd('inj',p.name+(/roja|doble/i.test(p.suspWhy||'')?' fue expulsado':' quedó suspendido'),`${p.suspWhy||'Suspensión'} · ${p.susp} fecha${p.susp===1?'':'s'}.`,'medical',sanIcon(p));}
       else if(a.k==='off'){const o=(G.offersIn||[]).find(x=>x.id===a.oid),p=o&&getPlayer(o.pid),t=o&&getTeam(o.teamId);
         const dup=p&&t&&(G.inbox||[]).some(m=>m.k==='off'&&m.s===G.season&&m.r===G.round&&String(m.x).indexOf(p.name)>=0&&String(m.x).indexOf(t.n)>=0);
         if(p&&t&&!dup)inboxAdd('off','Oferta por '+p.name,o.kind==='loan'?`${t.n} lo pide a préstamo (${money(o.amount)}).`:`${t.n} ofrece ${money(o.amount)}.`,'market');}
@@ -8180,7 +8204,7 @@ function inboxBadge(){
   }catch(e){}
 }
 const INBOX_ICON={inj:'🩹',off:'🤝',match:'⚽',club:'🏛'};
-const INBOX_TAB=[['all','Todo'],['inj','Lesiones'],['off','Ofertas y fichajes'],['match','Partidos'],['club','Club']];
+const INBOX_TAB=[['all','Todo'],['inj','Lesiones y sanciones'],['off','Ofertas y fichajes'],['match','Partidos'],['club','Club']];
 function inboxDateLabel(m){try{return m.d?calFmt(m.d,true):('Temp. '+m.s);}catch(e){return m.d||'';}}
 function renderInbox(){
   const el=document.getElementById('view-inbox');if(!el||!G)return;
@@ -8189,7 +8213,7 @@ function renderInbox(){
   const un=inboxUnread();
   el.innerHTML=`<div class="page-head"><div><div class="eyebrow">Tu mesa de entradas</div><h2>Novedades</h2><p>Lesiones, ofertas, resultados y avisos del club. Lo importante queda guardado acá.</p></div><div class="actions"><button class="btn btn-sm" onclick="inboxReadAll()" ${un?'':'disabled'}>Marcar todo como leído</button></div></div>
   <div class="sub-tabs">${INBOX_TAB.map(([k,l])=>`<button type="button" class="chip${INBOX_FILTER===k?' active':''}" onclick="inboxFilter('${k}')">${l}</button>`).join('')}</div>
-  <div class="panel inbox-list">${list.length?list.map(m=>`<div class="inbox-item${m.n?' new':''}"><span class="inbox-ic">${INBOX_ICON[m.k]||'•'}</span><div class="inbox-tx"><strong>${esc(m.t)}</strong>${m.x?`<p>${esc(m.x)}</p>`:''}<span class="small text-muted">${esc(inboxDateLabel(m))}</span></div>${m.go?`<button class="btn btn-sm btn-ghost" onclick="switchView('${m.go}')">${m.go==='market'?'Ver mercado':'Ver enfermería'}</button>`:''}</div>`).join(''):'<div class="empty">Sin novedades por ahora.</div>'}</div>`;
+  <div class="panel inbox-list">${list.length?list.map(m=>`<div class="inbox-item${m.n?' new':''}"><span class="inbox-ic">${m.i||INBOX_ICON[m.k]||'•'}</span><div class="inbox-tx"><strong>${esc(m.t)}</strong>${m.x?`<p>${esc(m.x)}</p>`:''}<span class="small text-muted">${esc(inboxDateLabel(m))}</span></div>${m.go?`<button class="btn btn-sm btn-ghost" onclick="switchView('${m.go}')">${m.go==='market'?'Ver mercado':'Ver enfermería'}</button>`:''}</div>`).join(''):'<div class="empty">Sin novedades por ahora.</div>'}</div>`;
   inboxBadge();
 }
 function inboxFilter(k){INBOX_FILTER=k;renderInbox();}
@@ -9014,7 +9038,7 @@ function attItems(){
   const add=(pri,icon,title,detail,label,go)=>out.push({pri,icon,title,detail,label,go});
   // 1) Bajas en el once
   const down=autoSubList().map(u=>u.p);
-  if(down.length)add(1,'🩹',down.length===1?'Un titular está de baja':down.length+' titulares están de baja',down.slice(0,3).map(p=>esc(p.name)+' ('+(p.inj>0?p.inj+' f. lesión':p.susp+' f. suspensión')+')').join(' · ')+'. Sus puestos quedan vacíos: elegí reemplazos o usá Autoalinear.','Ver tácticas',"switchView('tactics')");
+  if(down.length)add(1,down.every(p=>p.inj>0)?'🩹':down.every(p=>!(p.inj>0))?sanIcon(down[0]):'🚑',down.length===1?'Un titular está de baja':down.length+' titulares están de baja',down.slice(0,3).map(p=>sanIcon(p)+' '+esc(p.name)+' ('+(p.inj>0?p.inj+' f. lesión':p.susp+' f. · '+(p.suspWhy||'suspensión').toLowerCase())+')').join(' · ')+'. Sus puestos quedan vacíos: elegí reemplazos o usá Autoalinear.','Ver tácticas',"switchView('tactics')");
   // 2) Físico
   const xi=resolvedXI(t.id),tired=xi.filter(x=>(x.p.fit==null?100:x.p.fit)<65);
   if(tired.length>=3)add(2,'😮‍💨',tired.length+' titulares con poco físico',tired.slice(0,3).map(x=>esc(x.p.name)+' '+Math.round(x.p.fit)+'%').join(' · ')+'. Conviene rotar o bajar la intensidad.','Entrenamiento',"switchView('training')");
@@ -10976,7 +11000,7 @@ function onBuild(worldGz,mineGz){
   G=w;G.hctx={};G.hctx[me]=m;rebuildTeamMap();switchHuman(me);
   G.unemployed=false;G.fired=false;
   try{onFixSwap();}catch(e){console.error('fixswap',e);}
-  try{libSyncUser(G.lib);libSyncUser(G.sud);}catch(e){console.error('libsync',e);}
+  try{cupSyncUser();libSyncUser(G.lib);libSyncUser(G.sud);}catch(e){console.error('libsync',e);}
   // vuelvo a aplicar mis decisiones del dia que el servidor todavia no procesó
   ON.replay=true;
   try{ON.pending.forEach(a=>{try{applyAction(me,a.kind,a.payload);}catch(e){console.error('replay',e);}});}
@@ -11340,7 +11364,14 @@ function onFixSwap(){
 }
 
 // Liga online: las copas las juega el servidor en cada corte; no hay paso "de mitad de semana" para el usuario
+const _onMwOrig=midweekPending;
 midweekPending=function(){return false;};
+// El proximo evento del usuario es el corte de copa cuando le toca jugar copa (asi el calendario y el tema de colores de cada copa se activan)
+const _onCalNext=calNextEvent;
+calNextEvent=function(){
+  try{if(G&&!G.seasonFinished&&!G.pre&&!G.unemployed&&!promoActive()&&_onMwOrig(G.round))return {date:calMidDate(G.round),kind:'mid'};}catch(e){}
+  return _onCalNext.apply(this,arguments);
+};
 
 // Partidos de eliminatoria propios con relato (el ▶ de la fase de grupos ya existe en la vista de cada copa)
 const _onCompTab=compTabHTML;
