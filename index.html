@@ -1560,7 +1560,7 @@ tr.hum-row .team-cell .hum-sub2{color:var(--gold)!important;opacity:1!important}
     <section class="view" id="view-contracts"></section>
     <section class="view" id="view-staff"></section>
     <section class="view" id="view-settings"></section>
-    <div class="footer-note">Partida guardada localmente en este navegador · Escudos vectoriales originales incluidos en el archivo · Simulación deportiva ficticia.<br>Fulbo Manager · Hecho con mucho huevo y garra por <strong>Nico</strong> y <strong>Claude</strong> · Proyecto fan-made sin vínculo oficial con la AFA, la LPF ni los clubes ni las marcas comerciales (sus nombres están parodiados).</div>
+    <div class="footer-note">Tu carrera se guarda en tu liga online (no en este dispositivo) · Simulación deportiva ficticia.<br>Fulbo Manager · Hecho con mucho huevo y garra por <strong>Nico</strong> y <strong>Claude</strong> · Proyecto fan-made sin vínculo oficial con la AFA, la LPF ni los clubes ni las marcas comerciales (sus nombres están parodiados).</div>
   </main>
 </div>
 <section class="start-screen" id="start-screen" role="dialog" aria-modal="true" aria-labelledby="start-title">
@@ -4792,8 +4792,8 @@ function resolveMarket(){
       const demand=wageDemand(p,b.years);
       if(b.wage<demand*.97){notifyHuman(b.buyer,'Sueldo insuficiente',`${p.name} pide al menos ${money(demand)} de sueldo.`);results.push({bid:b.id,res:'wage'});continue;}
       if(ownerHuman){
-        inCtx(p.tId,()=>{addOffer({kind:'buy',pid:p.id,teamId:b.buyer,amount:b.amount,maxPay:b.amount,expires:G.round+1,fromHuman:true,wage:b.wage,years:b.years});logEvent('Oferta recibida',`${buyer.n} ofrece ${money(b.amount)} por ${p.name}. Tenés hasta el próximo corte para aceptar.`);});
-        notifyHuman(b.buyer,'Oferta enviada',`${getTeam(p.tId).n} recibió tu oferta por ${p.name}; responden antes del próximo corte.`);
+        inCtx(p.tId,()=>{addOffer({kind:'buy',pid:p.id,teamId:b.buyer,amount:b.amount,maxPay:b.amount,expires:G.round+1,fromHuman:true,wage:b.wage,years:b.years});logEvent('Oferta recibida',`${buyer.n} ofrece ${money(b.amount)} por ${p.name}. Tenés hasta la próxima fecha para aceptar.`);});
+        notifyHuman(b.buyer,'Oferta enviada',`${getTeam(p.tId).n} recibió tu oferta por ${p.name}; responden antes dla próxima fecha.`);
         results.push({bid:b.id,res:'forwarded'});done=true;continue;
       }
       if(!free){
@@ -6276,7 +6276,7 @@ function renderMarket(){
       const diff=Math.round((o.amount/p.value-1)*100),loan=o.kind==='loan';
       const head=loan?`${esc(c.n)} pide a ${esc(p.name)} a préstamo: ${money(o.amount)}`:`${esc(c.n)} ofrece ${money(o.amount)} por ${esc(p.name)}`;
       const det=loan?`${roleTag(p)} · media ${p.skill} · pagan el ${o.pct}% del sueldo · ${o.option>0?'opción de compra '+money(o.option):'sin opción de compra'} · vence en la fecha ${o.expires}`:`${roleTag(p)} · media ${p.skill} · valor estimado ${money(p.value)} (${diff>=0?'+':''}${diff} %) · vence en la fecha ${o.expires}${o.final?' · mejor oferta':''}`;
-      return `<div class="offer-card"><div><strong>${crest(c,'goal')} ${head}</strong><p>${det}</p></div><div class="offer-actions"><button class="btn btn-sm btn-primary" onclick="acceptIncomingOffer(${o.id})">Aceptar</button>${o.counter?`<span class="small text-muted">Contraoferta enviada (${money(o.counter.amount)}): responden en el próximo corte</span>`:`<button class="btn btn-sm" onclick="openCounter(${o.id})">Contraofertar</button>`}<button class="btn btn-sm" onclick="rejectIncomingOffer(${o.id})">Rechazar</button></div></div>`;
+      return `<div class="offer-card"><div><strong>${crest(c,'goal')} ${head}</strong><p>${det}</p></div><div class="offer-actions"><button class="btn btn-sm btn-primary" onclick="acceptIncomingOffer(${o.id})">Aceptar</button>${o.counter?`<span class="small text-muted">Contraoferta enviada (${money(o.counter.amount)}): responden en la próxima fecha</span>`:`<button class="btn btn-sm" onclick="openCounter(${o.id})">Contraofertar</button>`}<button class="btn btn-sm" onclick="rejectIncomingOffer(${o.id})">Rechazar</button></div></div>`;
     };
     body=`<div class="panel"><div class="section-row"><h3>Ofertas por tus jugadores</h3><span class="small text-muted">Aceptá, contraofertá o rechazá. Vencen a las pocas fechas</span></div>${offers.length?offers.map(card).join(''):'<div class="empty">No hay ofertas por ahora. Podés ofrecer un jugador a los clubes desde el plantel (Transferir) o esperar que se interesen en tus futbolistas.</div>'}</div>`;
   }
@@ -6313,7 +6313,7 @@ function renderCups(){
     else status=`<span class="badge badge-avg">En carrera · ${CUP_STAGES[c.stage]}</span>`;
     const pend=c&&!c.champion?`<div class="panel" style="margin-bottom:14px"><div class="section-row"><h3>Próxima fase: ${CUP_STAGES[c.stage]}</h3><span class="badge badge-neutral">Fecha ${cupRoundOf(c.stage)||'—'}</span></div><div class="fixture-list">${c.pending.slice().sort((a,b)=>((b.home===user.id||b.away===user.id)?1:0)-((a.home===user.id||a.away===user.id)?1:0)).slice(0,c.pending.length>8?8:c.pending.length).map(m=>cupMatchRow(m,null,null)).join('')}</div>${c.pending.length>8?`<p class="small text-muted" style="margin-top:8px">… y ${c.pending.length-8} partidos más del sorteo.</p>`:''}</div>`:'';
     const rounds=c?c.rounds.map((r,ri)=>({r,ri})).reverse():[];
-    body=`<div class="panel" style="margin-bottom:14px"><div class="section-row"><h3>Copa Argentina ${G.season}</h3>${status}</div><p class="text-muted">Eliminación directa a partido único (con penales si hay empate) entre los 80 clubes de las 4 divisiones. Primero se juegan dos previas entre equipos de la misma categoría (Primera C y luego B Metropolitana); los 64 que llegan arman los 32avos, donde cada equipo de Primera se cruza con uno de abajo y recién se miden entre ellos en las últimas instancias. Cada ronda se juega junto con una fecha de liga. El campeón recibe ${compactMoney(CUP_PRIZES[CUP_PRIZES.length-1])} y clasifica a la Copa Libertadores.</p></div>${pend}${rounds.map(({r,ri},i)=>`<details class="panel cup-round" style="margin-bottom:10px" ${i===0?'open':''}><summary><strong>${r.name}</strong> <span class="small text-muted">· ${r.matches.length} partido(s)</span></summary><div class="fixture-list" style="margin-top:10px">${r.matches.slice().sort((a,b)=>((b.home===user.id||b.away===user.id)?1:0)-((a.home===user.id||a.away===user.id)?1:0)).map(m=>cupMatchRow(m,ri,r.matches.indexOf(m))).join('')}</div></details>`).join('')||'<div class="empty">Todavía no se jugó ninguna ronda. La Copa arranca en la fecha '+(cupRoundOf(0)||'—')+'.</div>'}`;
+    body=`<div class="panel" style="margin-bottom:14px"><div class="section-row"><h3>Copa Argentina ${G.season}</h3>${status}</div><p class="text-muted">Eliminación directa a partido único (con penales si hay empate) entre los 80 clubes de las 4 divisiones. Primero se juegan dos previas entre equipos de la misma categoría (Primera C y luego B Metropolitana); los 64 que llegan arman los 32avos, donde cada equipo de Primera se cruza con uno de abajo y recién se miden entre ellos en las últimas instancias. Cada ronda tiene su propio corte, justo antes de la fecha de liga que le corresponde. El campeón recibe ${compactMoney(CUP_PRIZES[CUP_PRIZES.length-1])} y clasifica a la Copa Libertadores.</p></div>${pend}${rounds.map(({r,ri},i)=>`<details class="panel cup-round" style="margin-bottom:10px" ${i===0?'open':''}><summary><strong>${r.name}</strong> <span class="small text-muted">· ${r.matches.length} partido(s)</span></summary><div class="fixture-list" style="margin-top:10px">${r.matches.slice().sort((a,b)=>((b.home===user.id||b.away===user.id)?1:0)-((a.home===user.id||a.away===user.id)?1:0)).map(m=>cupMatchRow(m,ri,r.matches.indexOf(m))).join('')}</div></details>`).join('')||'<div class="empty">Todavía no se jugó ninguna ronda. La Copa arranca en la fecha '+(cupRoundOf(0)||'—')+'.</div>'}`;
   }else if(UI.cupsTab==='lib'){
     body=compTabHTML('lib');
   }else if(UI.cupsTab==='promo'){
@@ -11013,9 +11013,10 @@ function onStartGame(){
   closeModal();
   try{UI.selPlayer=null;UI.selSlot=null;}catch(e){}
   renderAll();switchView('overview');
+  try{setTimeout(()=>{try{onAutoBC();}catch(e){console.error('autobc',e);}},400);}catch(e){}
   onStartPoll();
   try{onNotifInit();}catch(e){}
-  if(!onLS('fmo_welcome1')){onLS('fmo_welcome1','1');openModal('¡Bienvenido a la liga!','<p>Se juegan <strong>tres cortes por día: a las 13:00, 17:00 y 21:00</strong> (hora de Argentina), para todos a la vez.</p><p>Hasta el próximo corte armá tu equipo y mandá ofertas por jugadores: <strong>el mercado se resuelve en cada corte</strong> y gana la oferta más alta.</p><p>Tocá el título de arriba (Temporada…) para ver el menú de la liga.</p>',[{label:'A jugar',primary:true,action:closeModal}]);}
+  if(!onLS('fmo_welcome1')){onLS('fmo_welcome1','1');openModal('¡Bienvenido a la liga!','<p>Se juegan <strong>tres cortes por día: a las 13:00, 17:00 y 21:00</strong> (hora de Argentina), para todos a la vez.</p><p>Hasta la próxima fecha armá tu equipo y mandá ofertas por jugadores: <strong>el mercado se resuelve en cada corte</strong> y gana la oferta más alta.</p><p>Tocá el título de arriba (Temporada…) para ver el menú de la liga.</p>',[{label:'A jugar',primary:true,action:closeModal}]);}
 }
 
 // ---- actualizacion periodica ----
@@ -11024,7 +11025,7 @@ function onLeft(){
   const t=new Date(ON.next).getTime()-Date.now();
   if(t<=0)return 'Procesando la fecha…';
   const h=Math.floor(t/3600000),m=Math.floor(t%3600000/60000);
-  return 'Próximo corte en '+h+'h '+String(m).padStart(2,'0')+'m';
+  return 'Próxima fecha en '+h+'h '+String(m).padStart(2,'0')+'m';
 }
 function onStartPoll(){
   if(ON.pollT)return;
@@ -11061,7 +11062,7 @@ function onRelabel(){
   const txt='⏱ '+onLeft();
   document.querySelectorAll('[onclick="advanceRound()"]').forEach(b=>{b.textContent=txt;});
   const qp=document.getElementById('quick-play');
-  if(qp){qp.textContent='⏱ '+onLeft().replace('Próximo corte en ','').replace('Procesando la fecha…','Procesando…');qp.title='Próxima fecha';qp.disabled=false;}
+  if(qp){qp.textContent='⏱ '+onLeft().replace('Próxima fecha en ','').replace('Procesando la fecha…','Procesando…');qp.title='Próxima fecha';qp.disabled=false;}
 }
 
 // ---- enviar decisiones ----
@@ -11125,7 +11126,7 @@ openNegotiation=function(pid){
     prev?{label:'Retirar oferta',action:()=>{closeModal();onAct('cancel_bid',{pid:p.id},'Oferta retirada.');}}:null,
     {label:prev?'Actualizar oferta':'Enviar oferta',primary:true,action:()=>{
       const amount=numIn('bid-amount'),wage=numIn('bid-wage'),years=numIn('bid-years')||3;
-      const r=onAct('bid',{pid:p.id,amount,wage,years},'Oferta enviada. Se resuelve en el próximo corte.');
+      const r=onAct('bid',{pid:p.id,amount,wage,years},'Oferta enviada. Se resuelve en la próxima fecha.');
       if(r&&r.ok)closeModal();
     }}]);
 };
@@ -11133,7 +11134,7 @@ buyPlayer=function(id){openNegotiation(id);};
 acceptIncomingOffer=function(id){onAct('respond_offer',{offer:Number(id),accept:true},'Oferta aceptada.');};
 rejectIncomingOffer=function(id){onAct('respond_offer',{offer:Number(id),accept:false},'Oferta rechazada.');};
 quickSell=function(){toast('Online no hay venta directa: poné al jugador como transferible y esperá ofertas.');};
-// empleados: los candidatos los genera el servidor (si no hay, se esperan al próximo corte)
+// empleados: los candidatos los genera el servidor (si no hay, se esperan a la próxima fecha)
 staffGenPool=function(role){return (G.staff&&G.staff.pool&&G.staff.pool[role])||[];};
 staffRefreshPool=function(){toast('Los candidatos nuevos llegan solos cada 10 fechas.');};
 // cesiones: pedir a un club de IA (se resuelve en el corte) y ofrecer los propios
@@ -11142,12 +11143,12 @@ openLoanIn=function(pid){
   if(G.seasonFinished||remainingRounds()<3){toast('Ya es muy tarde en la temporada para pedir cesiones.');return;}
   const why=sellerBlock(p,true);if(why){toast(why);return;}
   const ref=loanMinFee(p,75,0),prev=(G.loanBids||[]).find(b=>b.buyer===G.userTeamId&&b.pid===p.id);
-  openModal('Pedir a préstamo: '+p.name,`${negHead(p)}<p class="small text-muted" style="margin:10px 0">Hasta fin de temporada (${remainingRounds()} fechas). Referencia: con el 75% del sueldo a tu cargo suelen pedir unos ${money(ref)}. La respuesta llega en el próximo corte.</p>
+  openModal('Pedir a préstamo: '+p.name,`${negHead(p)}<p class="small text-muted" style="margin:10px 0">Hasta fin de temporada (${remainingRounds()} fechas). Referencia: con el 75% del sueldo a tu cargo suelen pedir unos ${money(ref)}. La respuesta llega en la próxima fecha.</p>
   <div class="neg-input"><label class="small text-muted" for="ln-fee">Tu oferta por el préstamo ($)</label><input id="ln-fee" class="form-control" type="number" min="0" step="5000" value="${prev?prev.fee:r1k(ref)}"></div>
   <div class="neg-input"><label class="small text-muted" for="ln-pct">Porcentaje del sueldo a tu cargo</label><select id="ln-pct" class="form-control">${[50,75,100].map(x=>`<option value="${x}" ${x===(prev?prev.pct:75)?'selected':''}>${x}%</option>`).join('')}</select></div>
   <div class="neg-input"><label class="small text-muted" for="ln-opt">Opción de compra ($, 0 = sin opción)</label><input id="ln-opt" class="form-control" type="number" min="0" step="10000" value="${prev?prev.option:0}"></div>`,
   [{label:'Cerrar',action:closeModal},{label:prev?'Actualizar propuesta':'Enviar propuesta',primary:true,action:()=>{
-    const r=onAct('bid_loan',{pid:p.id,fee:numIn('ln-fee'),pct:numIn('ln-pct')||75,option:Math.max(0,numIn('ln-opt'))},'Propuesta enviada. Respuesta en el próximo corte.');
+    const r=onAct('bid_loan',{pid:p.id,fee:numIn('ln-fee'),pct:numIn('ln-pct')||75,option:Math.max(0,numIn('ln-opt'))},'Propuesta enviada. Respuesta en la próxima fecha.');
     if(r&&r.ok)closeModal();}}]);
 };
 listForLoan=function(pid){
@@ -11155,11 +11156,11 @@ listForLoan=function(pid){
   closeModal();onAct('list_loan',{pid:Number(pid),fee,pct,option},'Quedó como cedible. Las ofertas llegan con las fechas.');
 };
 unlistLoan=function(pid){closeModal();onAct('unlist_loan',{pid:Number(pid)},'Ya no está como cedible.');};
-// contraofertas por mis jugadores: el club responde en el próximo corte
+// contraofertas por mis jugadores: el club responde en la próxima fecha
 sendCounter=function(id){
   const price=numIn('co-amount'),pct=numIn('co-pct');
   if(!(price>0)){toast('Ingresá un monto válido.');return;}
-  closeModal();onAct('counter',{offer:Number(id),amount:price,pct:pct||0},'Contraoferta enviada. El club responde en el próximo corte.');
+  closeModal();onAct('counter',{offer:Number(id),amount:price,pct:pct||0},'Contraoferta enviada. El club responde en la próxima fecha.');
 };
 listForSale=function(pid){
   const ask=numIn('ask-price');if(!(ask>0)){toast('Ingresá un precio válido.');return;}
@@ -11187,7 +11188,7 @@ renderMarket=function(){
   const me=G.userTeamId,bids=(G.bids||[]).filter(b=>b.buyer===me);
   const lrows=(G.loanBids||[]).filter(b=>b.buyer===me).map(b=>{const f=mkFindPlayer(b.pid);return `<div class="on-bid"><span><strong>${onEsc(f?f.p.name:'Jugador '+b.pid)}</strong> · préstamo ${money(b.fee)} · ${b.pct}% del sueldo${b.option?' · opción '+money(b.option):''}</span><button class="btn btn-sm" onclick="onAct('cancel_bid',{pid:${b.pid}},'Propuesta retirada.')">Retirar</button></div>`;}).join('');
   const rows=bids.map(b=>{const f=mkFindPlayer(b.pid);const nm=f?f.p.name:'Jugador '+b.pid;return `<div class="on-bid"><span><strong>${onEsc(nm)}</strong> · ${money(b.amount)} · sueldo ${money(b.wage)} · ${b.years} temp.</span><button class="btn btn-sm" onclick="onAct('cancel_bid',{pid:${b.pid}},'Oferta retirada.')">Retirar</button></div>`;}).join('');
-  el.insertAdjacentHTML('afterbegin',`<div class="panel on-panel"><div class="section-row"><h3>Subasta de fichajes</h3><span class="badge badge-neutral">${onEsc(onLeft())}</span></div><p class="small text-muted">Tus ofertas se resuelven junto con las de los demás en el próximo corte. Gana la más alta. La plata se descuenta recién si ganás.</p>${(rows+lrows)||'<p class="small text-muted">Todavía no tenés ofertas para el próximo corte.</p>'}</div>`);
+  el.insertAdjacentHTML('afterbegin',`<div class="panel on-panel"><div class="section-row"><h3>Subasta de fichajes</h3><span class="badge badge-neutral">${onEsc(onLeft())}</span></div><p class="small text-muted">Tus ofertas se resuelven junto con las de los demás en la próxima fecha. Gana la más alta. La plata se descuenta recién si ganás.</p>${(rows+lrows)||'<p class="small text-muted">Todavía no tenés ofertas para la próxima fecha.</p>'}</div>`);
 };
 // menu de la liga (tocando el titulo de arriba)
 function onMenu(){
@@ -11210,8 +11211,37 @@ function onMenu(){
   onEnter().catch(e=>{ON.sess=null;onLS(ON.SK,null);onLoginScreen(e.status===401||e.status===400?'Volvé a entrar.':e.message);});
 })();
 
+
+// Partidos mios que todavia no vi: al entrar o cuando llega una fecha nueva se abre sola la transmision (animada)
+function onSeenKey(){return 'fo_seen_'+(ON.member?ON.member.league_id+'_'+ON.member.team_id:'x');}
+function onMyPlayed(){
+  const me=G.userTeamId,out=[],S=G.season;
+  try{(G.intl&&G.intl.results||[]).forEach((r,i)=>{if(r.rec&&r.rec.events)out.push({id:'I:'+S+':'+i+':'+r.stage+':'+r.opp,rec:()=>recFromIntl(r)});});}catch(e){}
+  ['lib','sud'].forEach(k=>{try{((G[k]&&G[k].user)||[]).forEach(m=>{if(m.rec&&m.rec.events)out.push({id:'K:'+k+':'+S+':'+m.label+':'+m.home+':'+m.away,rec:()=>recFromLibRes(m)});});}catch(e){}});
+  try{(G.cup&&G.cup.rounds||[]).forEach((r,ri)=>(r.matches||[]).forEach((m,mi)=>{if((m.home===me||m.away===me)&&m.rec&&m.rec.events)out.push({id:'C:'+S+':'+ri+':'+mi,rec:()=>recFromCup(m,r.stage)});}));}catch(e){}
+  try{G.fixtures.forEach(f=>{if(f.played&&f.events&&(f.home===me||f.away===me))out.push({id:'L:'+S+':'+f.round,rec:()=>recFromFixture(f)});});}catch(e){}
+  return out;
+}
+function onAutoBC(){
+  if(!ON.ready||!G||typeof BC!=='undefined'&&BC)return false;
+  const all=onMyPlayed(),ids=all.map(x=>x.id);
+  let st=null;try{st=JSON.parse(onLS(onSeenKey())||'null');}catch(e){}
+  if(!st||st.s!==G.season){ // primera vez en la temporada: lo que ya estaba jugado se da por visto
+    onLS(onSeenKey(),JSON.stringify({s:G.season,ids:ids}));
+    return false;
+  }
+  const seen=new Set(st.ids),fresh=all.filter(x=>!seen.has(x.id));
+  onLS(onSeenKey(),JSON.stringify({s:G.season,ids:ids}));
+  if(!fresh.length)return false;
+  const list=fresh.slice(-3).map(x=>x.rec());
+  closeModal();
+  showBroadcastQueue(list);
+  return true;
+}
+
 // Despues de cada corte: resumen de mi partido con acceso al relato / animacion
 function onAfterTick(prevRound){
+  try{if(onAutoBC())return;}catch(e){console.error('autobc',e);}
   try{
     const me=G.userTeamId,all=G.fixtures.concat(G.otherFixtures||[]);
     const mine=all.filter(f=>f.played&&(f.home===me||f.away===me)&&f.round>=(prevRound==null?G.round-1:prevRound)&&f.round<G.round).sort((a,b)=>a.round-b.round);
@@ -11259,7 +11289,7 @@ async function onNotifSchedule(LN){
       const cut=d0.getTime()+d*24*H+h*H,at=cut-30*60000;
       if(at<=now+60000)continue;
       const lbl=h===16?'13:00':h===20?'17:00':'21:00';
-      out.push({id:id++,title:'⏱ El próximo corte es en 30 minutos',body:'Se juega a las '+lbl+'. Revisá tu alineación, el mercado y las ofertas antes del corte.',schedule:{at:new Date(at),allowWhileIdle:true},channelId:'fulbo_avisos',smallIcon:'ic_stat_fulbo'});
+      out.push({id:id++,title:'⏱ El próxima fecha es en 30 minutos',body:'Se juega a las '+lbl+'. Revisá tu alineación, el mercado y las ofertas antes del corte.',schedule:{at:new Date(at),allowWhileIdle:true},channelId:'fulbo_avisos',smallIcon:'ic_stat_fulbo'});
     }
   }
   if(out.length)await LN.schedule({notifications:out});
@@ -11304,14 +11334,14 @@ renderSettings=function(){
     <div class="set-row"><span>Liga</span><strong>${onEsc(ON.leagueName||'')}</strong></div>
     <div class="set-row"><span>Tu usuario</span><strong>${onEsc(ON.sess.name||'')}</strong></div>
     ${code?`<div class="set-row"><span>Código para invitar amigos</span><strong>${onEsc(code)}</strong></div>`:''}
-    <div class="set-row"><span>Próxima fecha</span><strong>${onEsc(onLeft().replace('Próximo corte en ','en '))}</strong></div>
+    <div class="set-row"><span>Próxima fecha</span><strong>${onEsc(onLeft().replace('Próxima fecha en ','en '))}</strong></div>
     <div class="set-row"><span>Traer los últimos cambios</span><button class="btn btn-sm" onclick="toast('Actualizando la liga…');onPoll(true)">Actualizar</button></div>
     ${onNotifNative()?`<div class="set-row"><span>Avisos (fechas, ofertas, resultados)</span><button class="btn btn-sm" onclick="onNotifToggle().then(renderSettings)">${onNotifOn()?'Activados':'Desactivados'}</button></div>`:''}
     <div class="set-row"><span>Salir de esta cuenta</span><button class="btn btn-sm btn-danger" onclick="onLogout()">Cerrar sesión</button></div>`;
     p3.innerHTML=`<h3>Cómo se juega online</h3><div class="help-list">
     <p><strong>Tres cortes por día: 13:00, 17:00 y 21:00</strong> (hora de Argentina), para toda la liga a la vez. En cada corte se juega una fecha de liga o los partidos de copa (Copa Argentina, Libertadores, Sudamericana) de esa fecha. El botón de arriba muestra cuánto falta.</p>
     <p><strong>Alineación, tácticas, entrenamiento, cantera, instalaciones y sponsors</strong> se guardan al instante en tu club.</p>
-    <p><strong>Mercado:</strong> tus ofertas, cesiones y contraofertas se resuelven <strong>en el próximo corte</strong>. Si dos managers ofertan por el mismo jugador, gana la mejor oferta. Las ofertas que recibís las respondés antes del corte.</p>
+    <p><strong>Mercado:</strong> tus ofertas, cesiones y contraofertas se resuelven <strong>en la próxima fecha</strong>. Si dos managers ofertan por el mismo jugador, gana la mejor oferta. Las ofertas que recibís las respondés antes del corte.</p>
     <p>Cuando se juega la fecha te aparece tu resultado y podés <strong>ver el partido</strong> en relato o con la cancha animada, también desde el Calendario (▶).</p>
     <p>Los clubes con <strong>DT humano</strong> se marcan en dorado en las tablas, con el nombre de usuario.</p>
     <p>Tocá <strong>Actualizar</strong> (arriba) si querés traer los cambios ya, sin esperar.</p></div>`;
@@ -11385,15 +11415,15 @@ compTabHTML=function(key){
   return h;
 };
 
-// Que toca en el proximo corte: partidos de copa de esta fecha (si hay) o la fecha de liga
+// Que toca en el proxima fecha: partidos de copa de esta fecha (si hay) o la fecha de liga
 function onCutInfo(){
   try{
     if(G.seasonFinished)return {kind:'fin',text:'Cierre de temporada: se juegan las copas de cierre y después arranca la nueva.'};
     const r=Math.min(G.round,getSeasonRounds());
     const due=G.midDone!==r&&!promoActive()&&(cupDueThisRound(r)||libDueThisRound(r)||sudDueThisRound(r));
     if(due){
-      const ex=roundExtras();
-      return {kind:'copa',text:ex.length?ex.map(x=>x.label+(x.opp?' vs '+x.opp.n:'')).join(' · '):'Partidos de copa (tu club no juega en esta ronda).'};
+      const ex=roundExtras(),fx=currentUserFixture(r);
+      return {kind:'copa',plays:ex.length>0,text:ex.length?ex.map(x=>x.label+(x.opp?' vs '+x.opp.n:'')).join(' · '):'Tu club no juega en este corte. Tu próximo partido es de liga'+(fx?': Fecha '+r+' vs '+(fx.home===G.userTeamId?getTeam(fx.away).n:getTeam(fx.home).n):'')+', en la fecha siguiente.'};
     }
     const f=currentUserFixture(r);
     return {kind:'liga',text:f?'Fecha '+r+': '+getTeam(f.home).n+' vs '+getTeam(f.away).n:'Fecha '+r+' (tu club no juega).'};
@@ -11404,7 +11434,7 @@ renderOverview=function(){
   _onRenderOverview.apply(this,arguments);
   try{
     const i=onCutInfo(),el=document.getElementById('view-overview');
-    if(i&&el&&!el.querySelector('.on-cut'))el.insertAdjacentHTML('afterbegin',`<div class="panel on-panel on-cut" style="margin-bottom:12px"><div class="section-row"><h3>${i.kind==='copa'?'🏆 Próximo corte: copa':'⚽ Próximo corte'}</h3><span class="badge badge-neutral">${onEsc(onLeft().replace('Próximo corte en ','en '))}</span></div><p class="small text-muted">${onEsc(i.text)}</p></div>`);
+    if(i&&el&&!el.querySelector('.on-cut'))el.insertAdjacentHTML('afterbegin',`<div class="panel on-panel on-cut" style="margin-bottom:12px"><div class="section-row"><h3>${i.kind==='copa'?(i.plays?'🏆 Próxima fecha: tu partido de copa':'🏆 Próxima fecha: copa (sin tu club)'):'⚽ Próxima fecha: liga'}</h3><span class="badge badge-neutral">${onEsc(onLeft().replace('Próxima fecha en ','en '))}</span></div><p class="small text-muted">${onEsc(i.text)}</p></div>`);
   }catch(e){}
 };
 
