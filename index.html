@@ -5807,7 +5807,7 @@ function synthClick(ctx,dest,t,soft){
   o.connect(g);g.connect(dest);o.start(t);o.stop(t+.09);
 }
 function synthWhistleBlast(ctx,dest,t,dur){
-  const g=ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.06,t+.025);g.gain.setValueAtTime(.06,t+dur-.05);g.gain.linearRampToValueAtTime(0,t+dur);
+  const g=ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.022,t+.025);g.gain.setValueAtTime(.022,t+dur-.05);g.gain.linearRampToValueAtTime(0,t+dur);
   const trill=ctx.createGain();trill.gain.value=.55;
   const lfo=ctx.createOscillator(),lg=ctx.createGain();lfo.frequency.value=26;lg.gain.value=.45;lfo.connect(lg);lg.connect(trill.gain);
   [2860,3140].forEach(f=>{const o=ctx.createOscillator();o.type='sine';o.frequency.setValueAtTime(f*.985,t);o.frequency.linearRampToValueAtTime(f,t+.08);o.connect(trill);o.start(t);o.stop(t+dur+.02);});
